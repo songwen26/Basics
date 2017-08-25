@@ -21,5 +21,6 @@ function maxArr($array){
     return $max;
 }
 //测试用例
-$array = array(-1,4,5,6,-10,12,-2,1);
+//$array = array(-1,4,5,6,-10,12,-2,1);
+$array = array(1,-3,4,5,6,7,-6,10,-15);
 echo maxArr($array);
