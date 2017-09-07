@@ -91,3 +91,6 @@ PHP的弱变量容器的实现方式是兼容并包的形式体现。
 
 ##三、变量与类型相关扩展
 http://php.net/manual/zh/refs.basic.vartype.php
+
+
+
