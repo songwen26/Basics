@@ -865,5 +865,329 @@ Apache的Hook机制是指：Apache允许模块(包括内部模块和外部模块
 <p>
 <b>conn_rec对象</b>coon_rec对象是TCP连接在Apache的内部实现。它在客户端连接到服务器创建，在连接断开时释放。
 </p>
+####嵌入式
+	#include <sapi/embed/php_embed.h>
+<p>
+	在sapi目录下的embed目录是PHP对于嵌入式的抽象层所在。在这里有我们所要用到的函数或宏定义。
+</p>
+	#ifdef ZTS
+		void ***tsrm_ls;
+	#endif
+<p>
+	ZTS是Zend Thread Safety的简写，与这个相关的有一个TSRM(线程安全资源管理)。
+</P>
+	zend_module_entry php_mymod_module_entry = {
+		STANDARD_MODULE_HEADER,
+		"mymod", 		/* extension name */
+		NULL,			/* function entries */
+		NULL,			/* MINIT */
+		NULL,			/* MSHUTDOWN */
+		NULL,			/* RINIT */
+		NULL,			/* RSHUTDOWN */
+		NULL,			/* MINFO */
+		"1.0",			/* version */
+		STANDARD_MODULE_PROPERTIES
+	};
+<p>
+	以上PHP内部的模块结构声明，此处对于模块初始化，请求初始化等函数指针均为NULL，也就是模块在初始化及请求开始结束等事件发生的时候不执行任何操作，不过这些操作在sapi/embed/php_embed.c文件中的php_embed_shutdown等函数中有体现。关于模块结构的定义在zend/zend_modules.h中。
+</P>
+<p>
+	startup_php函数：
+</P>
+	static void startup_php(void)
+	{
+		int argc = 1;
+		char *argv[2] = {"embed5", NULL};
+		php_embed_init(argc, argv PTSRMLS_CC);
+		zend_startup_module(&php_mymod_module_entry);
+	}
+<p>
+	这个函数调用了两个函数php_embed_init和zend_startup_module完成初始化工作。php_embed_init函数定义在sapi/embed.php_embed.c文件中。它完成了PHP对于嵌入式的初始化支持。zend_startup_module函数是PHP的内部API函数，它的作用是注册定义的模块，这里是注册mymod模块。这个注册过程仅仅是将所定义的zend_module_entry结构添加到注册模块列表中。
+</P>
+<p>
+	execute_php函数：
+</P>
+	static void execute_php(char *filename)
+	{
+		zend_first_try{
+			char *includ_script;
+			spprintf(&include_script, 0, "include '%s'", filename);
+			zend_eval_string(include_script, NULL, filename TSRMLS_CC);
+			efree(include_script);	
+		} zend_end_try();
+	}
+<p>
+	从函数的名称来看，这个函数的功能是执行PHP代码的。它通过调用spprintf函数构造一个include语句，然后再调用zend_eval_string函数执行这个include语句。zend_eval_string最终是调用zend_eval_string函数，这个函数是流程是一个编译PHP代码，生成zend_op_array类型数据，并执行opcode的过程。这段程序相当于下面的这段php程序，这段程序可以用php命令来执行，虽然下面这段程序没有实际意义，而通过嵌入式PHP在，你可以在一个用C实现的系统中嵌入PHP，然后用PHP来实现功能。
+</P>
+	<?php
+	if($argc < 2) die("Usage: embed4 scriptfile");
+	include $argv[1];
+<p>
+	main函数：
+</p>
+	int main(int argc, char *argv[])
+	{
+		if(argc <= 1){
+			printf("Usage: embed4 scriptfile");
+			return -1;
+		}
+		startup_php();
+		executr_php(argv[1]);
+		php_embed_shutdown(TSRMLS_CC);
+		return 0;
+	}
+<p>
+	这个函数是主函数，执行初始化操作，根据输入的参数执行PHP的include语句，最后执行关闭操作，返回。其中php_embed_shutdown函数定义在sapi/embed/php_embed.c文件中。它完成了PHP对于嵌入式的关闭操作支持。包括请求关闭操作，模块关闭操作等。
+</p>
+<p>
+	以上是使用PHP的嵌入式方式开发的一个简单的PHP代码运行器，它的这些调用的方式都基于PHP本身的一些实现，而针对嵌入式的SAPI定义是非常简单的，没有Apache和CGI模式的复杂，或者说是相当简陋，这也是由其所在环境决定。在嵌入式的环境下，很多的网络协议所需要的方法都不再需要。如下所示，为嵌入式的模块定义。
+</p>
+	sapi_module_struct php_embed_modeule = {
+		"embed",                       /* name */
+    	"PHP Embedded Library",        /* pretty name */
+ 
+    	php_embed_startup,              /* startup */
+    	php_module_shutdown_wrapper,   /* shutdown */
+ 
+    	NULL,                          /* activate */
+    	php_embed_deactivate,           /* deactivate */
+ 
+    	php_embed_ub_write,             /* unbuffered write */
+    	php_embed_flush,                /* flush */
+    	NULL,                          /* get uid */
+    	NULL,                          /* getenv */
+ 
+    	php_error,                     /* error handler */
+ 
+    	NULL,                          /* header handler */
+    	NULL,                          /* send headers handler */
+    	php_embed_send_header,          /* send header handler */
+ 	
+    	NULL,                          /* read POST data */
+    	php_embed_read_cookies,         /* read Cookies */
+ 
+    	php_embed_register_variables,   /* register server variables */
+    	php_embed_log_message,          /* Log message */
+    	NULL,                           /* Get request time */
+    	NULL,                           /* Child terminate */
 
+		STANDARD_SAPI_MODULE_PROPERTIES
+	};
+<p>
+	在这个定义中我们看到了若干的NULL定义，在前面一个小节中说到SAPI时，我们是以cookie的读取为例，在这里也有读取cookie的实现——php_embed_read_cookies函数，但是这个函数的实现是一个空指针NULL.
+</p>
+<p>
+	而这里的flush实现与Apache的不同
+</p>
+	static void php_embed_flush(void *server_context)
+	{
+		if (fflush(stdout==EOF)){
+			php_handle_aborted_connection();
+		}
+	}
+<p>
+	flush是直接调用fflush(stdout),以达到清空stdout的缓存的目的。如果输出失败(fflush成功返回0， 失败返回EOF)，则调用php_handle_aborted_connection，进入中断处理程序。
+</p>
+####FastCGI
+#####CGI简介
+***
+<p>
+	CGI全称“通用网关接口”，它可以让一个客户端，从网页浏览器向执行在web服务器上的程序请求数据。CGI描述了客户端和这个程序之间传输数据的一种标准。CGI的一个目的是要独立于任何语言的，所以CGI可以用任何一种语言编写，只要这种语言具有标准输入、输出和环境变量。如：php,perl,tcl等。
+</p>
+#####CGI的运行原理
+<p>
+	<p>
+	1.客户端访问某个URL地址之后，通过GET/POST/PUT等方式提交数据，并通过HTTP协议向Web服务器发出请求。
+	</p>
+	<p>
+	2.服务器的HTTP Daemon(守护进程)启动一个子进程。然后在子进程中，将HTTP请求里描述的信息通过标准输入stdin和环境变量传递给URL指定的CGI程序，并启动此应用程序进行处理，处理结果通过标准输出stdout返回给HTTP Daemon子进程。
+	</p>
+	<p>
+	3.再由HTTP Daemon 子进程通过HTTP协议返回给客户端。
+	</p>
+</p>
+<p>
+Web服务器程序：
+</p>
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <unistd.h>
+	#include <sys/types.h>
+	#include <sys/socket.h>
+	#include <arpa/inet.h>
+	#include <netinet/in.h>
+	#include <string.h>
 
+	#include SERV_PORT	9003
+	
+	char *str_join(char *str1, char *str2);
+	
+	char *html_response(char *res, char *buf);
+	
+	int main(void){
+		int lfd, cfd;
+		struct socket_in serv_addr, clin_addr;
+		socklen_t clin_len;
+		char buf(1024), web_result[1024];
+		int len;
+		FILE *cin;
+
+		if ((lfd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+			perror("create socket failed");
+			exit(1);
+		}
+
+		memset(&serv_addr, 0, sizeof(serv_addr));
+		serv_addr.sin_family = AF_INET;
+		serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+		serv_addr.sin_port = htons(SERV_PORT);
+
+		if (bind(lfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) == -1) {
+        	perror("bind error");
+        	exit(1);
+    	}
+ 
+    	if (listen(lfd, 128) == -1) {
+        	perror("listen error");
+        	exit(1);
+    	}
+
+		signal(SIGCLD, SIG_IGN);
+
+		while (1) {
+			clin_len = sizeof(clin_addr);
+			if ((cfd = accept(lfd, (struct sockaddr *) &clin_addr, &clin_len)) == -1) {
+            	perror("接收错误\n");
+            	continue;
+        	}
+			
+			cin = fdopen(cfd, "r");
+			setbuf(cin, (char *) 0);
+			fgets(buf, 1024, cin)	//读取第一行
+			printf("\n%s", buf);
+
+			//======================== cgi 环境变量设置演示 ====================
+			// 例如 "GET /cgi-bin/user?id=1 HTTP/1.1";
+
+			char *delim = " ";
+			char *p;
+			char *method, *filename, *query_string;
+			char *query_string_pre = "QUERY_STRING=*";
+
+			method = strtok(buf, delim);         // GET
+        	p = strtok(NULL, delim);             // /cgi-bin/user?id=1 
+        	filename = strtok(p, "?");           // /cgi-bin/user
+
+			if (strcmp(filename, "/favicon.ico") == 0) {
+            	continue;
+        	}
+ 
+        	query_string = strtok(NULL, "?");    // id=1
+        	putenv(str_join(query_string_pre, query_string));
+
+			//============================ cgi 环境变量设置演示 ============================
+ 
+        	int pid = fork();
+ 
+        	if (pid > 0) {
+            	close(cfd);
+        	}
+        	else if (pid == 0) {
+            	close(lfd);
+            	FILE *stream = popen(str_join(".", filename), "r");
+            	fread(buf, sizeof(char), sizeof(buf), stream);
+            	html_response(web_result, buf);
+            	write(cfd, web_result, sizeof(web_result));
+            	pclose(stream);
+            	close(cfd);
+            	exit(0);
+        	}
+        	else {
+            	perror("fork error");
+            	exit(1);
+        	}
+				
+		}	
+		
+		close(lfd);
+ 
+    	return 0;	
+	}
+
+	char *str_join(char *str1, char *str2) {
+		char *result = malloc(strlen(str1) + strlen(str2) + 1);
+		if (result == NULL) exit(1);
+		strcpy(result, str1);
+		strcat(result, str2);
+
+		return result;
+	}
+
+	char *html_response(char *res, char *buf) {
+		char *html_response_template = "HTTP/1.1 200 OK\r\nContent-Type:text/html\r\nContent-Length: %d\r\nServer: mengkang\r\n\r\n%s";
+		
+		sprintf(res, html_response_template, strlen(buf), buf);
+
+		return res;
+	}
+#####FastCGI简介
+***
+<p>
+	FastCGI是Web服务器和处理程序之间通信的一种协议，是CGI的一种改进方案，FastCGI像是一个常驻型的CGI，它可以一直执行，在请求到达时不会花费时间去fork一个进程来处理(这是CGI最为人诟病的fork-and-execute模式)。正是因为他只是一个通信协议，它还支持分布式的运算，所以FastCGI程序可以在网站服务器以外的主机上执行，并且可以接受来自其它网站服务器的请求。
+</p>
+<p>
+	FastCGI是与语言无关的、可伸缩架构的CGI开放扩展，将CGI解释器进程保存在内存中，以此获得较高的性能、CGI程序反复加载是CGI性能低下的主要原因，如果CGI程序保持在内存中并接受FastCGI进程管理器调度，则可以提供良好的性能、伸缩性、Fail-Over特性等。
+</p>
+#####FastCGI工作流程如下：
+***
+<p>
+	<p>
+	1、FastCGI进程管理器自身初始化，启动多个CGI解释器进程，并等待来自Web Server的连接。
+	</p>
+	<p>
+	2、Web服务器与FastCGI进程管理器进行Socket通信，通过FastCGI协议发送CGI环境变量和标准输入数据给CGI解释器进程。
+	</p>
+	<p>
+	3、CGI解释器进程完成处理后将标准输出和错误信息从同一连接返回Web Server.
+	</p>
+	<p>
+	4、CGI解释器进程接着等待并处理来自Web Server的下一个连接。
+	</p>
+</p>
+<p>
+	FastCGI与传统CGI模式的区别之一则是Web服务器不是直接执行CGI程序了，而是通过Socket与FastCGI响应器（FastCGI进程管理器）进行交换，也正是由于FastCGI进程管理器是基于Socket通信的，所以也是分布式的，Web服务器可以和CGI响应服务器分开部署。Web服务器需要将数据CGI/1.1的规范封装在遵循FastCGI协议包中发送给FastCGI响应器程序。
+</p>
+#####FastCGI消息类型
+***
+	typedef enum _fcgi_request_type {
+		FCGI_BEGIN_REQUEST      =  1, /* [in]                              */
+    	FCGI_ABORT_REQUEST      =  2, /* [in]  (not supported)             */
+    	FCGI_END_REQUEST        =  3, /* [out]                             */
+    	FCGI_PARAMS             =  4, /* [in]  environment variables       */
+    	FCGI_STDIN              =  5, /* [in]  post data                   */
+    	FCGI_STDOUT             =  6, /* [out] response                    */
+    	FCGI_STDERR             =  7, /* [out] errors                      */
+    	FCGI_DATA               =  8, /* [in]  filter data (not supported) */
+    	FCGI_GET_VALUES         =  9, /* [in]                              */
+    	FCGI_GET_VALUES_RESULT  = 10  /* [out]                             */
+	} fcgi_request_type;
+#####消息的发送顺序
+***
+<p>
+下图是一个比较常见消息传递流程
+</p>
+<div class="book-img" style="text-align: center;">
+<img src="/img/02-02-03-fastcgi-data.png" alt="图2.9 FastCGI 消息传递流程示意图">
+<div class="book-img-desc">图2.9 FastCGI 消息传递流程示意图</div>
+</div>
+<p>
+	最先发送的是FCGI_BEGIN_REQUEST,然后是FCGI_PARAMS和FCGI_STDIN,由于每个消息头里面能够承载的最大长度时65535，所以这两种类型的消息不一定只发送一次，有可能连续发送多次。
+</p>
+<p>
+	FastCGI响应体处理完毕之后，将发送FCGI_STDOUT、FCGI_STDERR，同理也可能多次连续发送。最后以FCGI_END_REQUEST表示请求的结束。需要注意的一点，FCGI_BEGIN_REQUEST和FCGI_END_REQUEST分别标识着请求的开始和结束，与整个协议息息相关，所以他们的消息的内容也是协议的一部分，因此也会有相应的结构体与之对应。而环境变量、标准输入、标准输出、错误输出，这些都是业务相关，与协议无关，所以他们的消息体的内容则无结构体对应。
+</p>
+<p>
+	由于整个消息是二进制连续传递的，所以必须定义一个统一的结构的消息头，这样以便读取每个消息的消息体，方便消息的切割。这在网络通讯中是非常常见的一种手段。
+</p>
+#####FastCGI消息头
+***
