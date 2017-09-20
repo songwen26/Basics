@@ -1191,3 +1191,266 @@ Web服务器程序：
 </p>
 #####FastCGI消息头
 ***
+<p>
+	FastCGI消息分10种消息类型，有的是输入有的是输出。而所有的消息都以一个消息开头，其结构体定义如下：
+</p>
+	typedef struct _fcgi_header {
+		unsigned char varsion;
+		unsigned char type;
+		unsigned char requestIdB1;
+		unsigend char requestIdB0;
+		unsigend char contentLengthB1;
+		unsigend char contentLengthB0;
+		unsigend char paddingLength;
+		unsigend char reserved;
+	} fcgi_header;
+<p>
+	字段解释下：
+	<p>
+		version标识FastCGI协议版本。type标识FastCGI记录类型，也就是记录执行的一般职能。requestId标识记录所属的FastCGI请求。contentLength记录的contentData组件的字节数。
+	</p>
+	<p>
+		关于上面的xxB1和xxB0的协议说明：当两个相邻的结构组件除了后缀"B1"和"B0"之外命名相同时，它表示这两个组件可视为估值为B1<<8 + B0的单个数字。该单个数字的名字是这些组件减去后缀的名字。这个约定归纳了一个由超过两个字节表示的数字的处理方式。
+	</p>
+	<p>
+		比如协议头中requestId和contentLength表示的最大值就是65535。
+	</p>	
+</p>
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <limits.h>
+
+	int main()
+	{
+		unsigned char requestIdB1 = UCHAR_MAX;
+		unsigned char requestIdB0 = UCHAR_MAX;
+		printf("%d\n", (requestIdB1 << 8) + requestIdB0);		//65535
+	}
+#####FCGI_BEGIN_REQUEST的定义
+***
+	typedef struct _fcgi_begin_request {
+		unsigned char roleB1;
+		unsigend char roleB0;
+		unsigend char flags;
+		unsigend char reserved[5];
+	} fcgi_begin_request;
+<p>
+	<b>字段解释：</b>role表示Web服务器期望应用扮演的角色。分为三个角色
+</p>
+	typedef enum _fcgi_role {
+		FCGI_RESPONDER = 1;
+		FCGI_AUTHORIZER = 2;
+		FCGI_FILTER = 3;
+	} fcgi_fole;
+<p>
+	而FCGI_BEGIN_REQUEST中的flags组件包含一个控制线路关闭的位：flags & FCGI_KEEP_CONN :结果为0，则应用在对本次请求响应后关闭线路。如果非0，应用在对本次请求响应后不会关闭线路；Web服务器为线路保持响应性。
+</p>
+#####FCGI_END_REQUEST的定义
+***
+	typedef struct _fcgi_end_request {
+		unsigend char appStatusB3;
+		unsigend char appStatusB2;
+		unsigend char appStatusB1;
+		unsigend char appStatusB0;
+		unsigend char protocolStatus;
+		unsigend char reserved[3];
+	} fcgi_end_request;
+<p>
+	字段解释：
+	<p>
+		appStatus组件是应用级别的状态码。protocolStatus组件是协议级别的状态码；protocolStatus的值可能是：
+	</p>	
+</p>
+	FCGI_REQUEST_COMPLETE:请求的正常结束
+	FCGI_CANT_MPX_CONN:拒绝新请求。这发送在Web服务器通过一条线路向应用发送并发的请求时，后者被设计为每条线路每次处理一个请求。
+	FCGI_OVERLOADED:拒绝新请求。这发生在应用用完某些资源时，例如数据库连接。
+	FCGI_UNKNOWN_ROLE:拒绝新请求。这发生在Web服务器指定了一个应用不能识别的角色时。
+<p>
+	protocolStatus在PHP中的定义如下：
+</p>
+	typedef enum _fcgi_protocol_status {
+		FCGI_REQUEST_COMPLETE = 0;
+		FCGI_CANT_MPX_CONN = 1;
+		FCGI_OVERLOADED = 2;
+		FCGI_UNKNOWN_ROLE = 3;	
+	} dcgi_protocol_status;
+<p>
+	需要注意dcgi_protocol_status和fcgi_role各个元素的值都是FastCGI协议里定义好的，而非PHP自定义的。
+</p>
+#####消息通讯样例
+***
+<p>
+	为了简单的表示，消息头只显示消息的类型和消息的id，其他字段都不予以显示。而一行表示一个数据包。下面的例子来着官网
+</p>
+	{FCGI_BEGIN_REQUEST, 1, {FCGI_RESPONDER,0}}
+	{FCGI_PARMS, 1, "\013\002SERVER_PORT80\013\016SERVER_ADDR199.170.183.42 ..."}
+	{FCGI_STDIN,           1, "quantity=100&item=3047936"}
+	{FCGI_STDOUT,          1, "Content-type: text/html\r\n\r\n<html>\n<head> ... "}
+	{FCGI_END_REQUEST,     1, {0, FCGI_REQUEST_COMPLETE}}
+<p>
+	配合上面各个结构体，则可以大致想到FastCGI响应器的解析和响应流程：首先读取消息头，得到其类型为FCGI_BEGIN_REQUEST，然后解析其消息体，得知其需要的角色就是FCGI_RESPONDER，flag为0，表示请求结束后关闭线路。然后解析第二段消息，得知其消息类型为FCGI_PARAMS，然后直接将消息体里的内容以回车符切割后存入环境变量。与之类似，处理完毕之后，则返回了FCGI_STDOUT消息体和FCGI_END_REQUEST消息体供Web服务器解析。
+</p>
+#####PHP中的CGI实现
+***
+<p>
+	PHP的CGI实现了FastCGI协议，是一个TCP或UDP协议的服务器接受来自Web服务器的请求，当启动时创建TCP/UDP协议的服务器的socket监听，并接收相关请求进行处理。随后就进入了PHP的生命周期：模块初始化，sapi初始化，处理PHP请求，模块关闭，sapi关闭等就构成了整个CGI的生命周期。
+	<p>
+		以TCP为例，在TCP的服务端，一般会执行这样几个操作步骤：
+		<p>
+			1、调用socket函数创建一个TCP用的流式套接字；
+		</p>
+		<p>
+			2、调用bind函数将服务器的本地地址与前面创建的套接字绑定；
+		</p>
+		<p>
+			3、调用listen函数将新创建的套接字作为监听，等待客户端发起的连接，当客户端有多个连接连接到这个套接字时，可能需要排队处理；
+		</p>
+		<p>
+			4、服务器进程调用accept函数进入阻塞状态，直到有客户进程调用connect函数而建立一个连接；
+		</p>
+		<p>
+			5、当与客户端创建连接后，服务器调用read_stream函数读取客户的请求；
+		</p>
+		<p>
+			6、处理完数据后，服务器调用write函数向客户端发送应答。
+		</p>
+	</p>		
+</p>
+<p>
+	TCP上客户-服务器事务的时序如图2.6所示：
+</p>
+<div class="book-img" style="text-align: center;">
+<img src="/img/02-02-03-tcp.jpg" alt="图2.6 TCP上客户-服务器事务的时序">
+<div class="book-img-desc">图2.6 TCP上客户-服务器事务的时序</div>
+</div>
+<p>
+	PHP的CGI实现从cgi_main.c文件的main函数开始，在main函数中调用了定义在fastcgi.c文件中的初始化，监听等函数。对比TCP的流程，我们查看PHP对TCP协议的实现，虽然PHP本身也实现了这些流程，但是在main函数中一些过程被封装成一个函数实现。对应TCP的操作流程，PHP首先会执行创建socket，绑定套接字，创建监听：
+</p>
+	if (bindpath) {
+		fcgi_fd = fcgi_listen(bindpath, 128);	//实现Socket监听，调用fcgi_init初始化
+		…
+	}
+<p>
+	在fastcgi.c文件中，fcgi_listen函数主要用于创建，绑定socket并开始监听，它走完了前面所列TCP流程的前三个阶段，
+</p>
+	    if ((listen_socket = socket(sa.sa.sa_family, SOCK_STREAM, 0)) < 0 ||
+        ...
+        bind(listen_socket, (struct sockaddr *) &sa, sock_len) < 0 ||
+        listen(listen_socket, backlog) < 0) {
+        ...
+    }
+<p>
+	当服务端初始化完成后，进程调用accept函数进入阻塞状态，在main函数中我们看到如下代码：
+</p>
+	while (parent) {
+        do {
+            pid = fork();   //  生成新的子进程
+            switch (pid) {
+            case 0: //  子进程
+                parent = 0;
+ 
+                /* don't catch our signals */
+                sigaction(SIGTERM, &old_term, 0);   //  终止信号
+                sigaction(SIGQUIT, &old_quit, 0);   //  终端退出符
+                sigaction(SIGINT,  &old_int,  0);   //  终端中断符
+                break;
+                ...
+                default:
+                /* Fine */
+                running++;
+                break;
+        } while (parent && (running < children));
+ 
+    ...
+        while (!fastcgi || fcgi_accept_request(&request) >= 0) {
+        SG(server_context) = (void *) &request;
+        init_request_info(TSRMLS_C);
+        CG(interactive) = 0;
+                    ...
+            }
+<p>
+	如上对应服务器端读取用户的请求数据。	
+</p>
+<p>
+	在请求初始化完成，读取请求完毕后，就该处理请求的PHP文件了。 假设此次请求为PHP_MODE_STANDARD则会调用php_execute_script执行PHP文件。 在此函数中它先初始化此文件相关的一些内容，然后再调用zend_execute_scripts函数，对PHP文件进行词法分析和语法分析，生成中间代码， 并执行zend_execute函数，从而执行这些中间代码。关于整个脚本的执行请参见第三节 脚本的执行。
+</p>
+<p>
+	在处理完用户的请求后，服务器端将返回信息给客户端，此时在main函数调用的是fcgi_finish_request(&request, 1); fcgi_finish_request函数定义在fastcgi.c文件中，其代码如下：
+</p>
+	int fcgi_finish_request(fcgi_request *req, int force_close)
+	{
+		int ret = 1;
+		
+		if (req->fd >= 0) {
+			if (!req->closed) {
+        		ret = fcgi_flush(req, 1);
+        		req->closed = 1;
+    		}
+    		fcgi_close(req, force_close, 1);
+		}
+		return ret;
+	}
+<p>
+	如上，当socket处于打开状态，并且请求未关闭，则会将执行后的结果刷到客户端，并将请求的关闭设置为真。 将数据刷到客户端的程序调用的是fcgi_flush函数。在此函数中，关键是在于答应头的构造和写操作。 程序的写操作是调用的safe_write函数，而safe_write函数中对于最终的写操作针对win和linux环境做了区分， 在Win32下，如果是TCP连接则用send函数，如果是非TCP则和非win环境一样使用write函数。如下代码：
+</p>
+	#ifdef _WIN32
+	if (!req->tcp)
+	{
+		ret = write(req->fd, ((char*)buf)+n, count-n);
+	}else {
+		ret = send(req->fd, ((char*)buf)+n, count-n, 0);
+		if (ret <= 0)
+		{
+			error = WSAGetLastError();
+		}
+	}
+	#else
+	ret = write(req->fd, ((char*)buf)+n, count-n);
+	#endif
+<p>
+	在发送了请求的应答后，服务器端将会执行关闭操作，仅限于CGI本身的关闭，程序执行的是fcgi_close函数。 fcgi_close函数在前面提的fcgi_finish_request函数中，在请求应答完后执行。同样，对于win平台和非win平台有不同的处理。 其中对于非win平台调用的是write函数。
+</p>
+<p>
+	以上是一个TCP服务器端实现的简单说明。这只是我们PHP的CGI模式的基础，在这个基础上PHP增加了更多的功能。 在前面的章节中我们提到了每个SAPI都有一个专属于它们自己的sapi_module_struct结构：cgi_sapi_module，其代码定义如下：
+</p>
+	/* {{{ sapi_module_struct cgi_sapi_module
+ 	*/
+	static sapi_module_struct cgi_sapi_module = {
+	"cgi-fcgi",                     /* name */
+	"CGI/FastCGI",                  /* pretty name */
+ 
+	php_cgi_startup,                /* startup */
+	php_module_shutdown_wrapper,    /* shutdown */
+ 
+	sapi_cgi_activate,              /* activate */
+	sapi_cgi_deactivate,            /* deactivate */
+ 
+	sapi_cgibin_ub_write,           /* unbuffered write */
+	sapi_cgibin_flush,              /* flush */
+	NULL,                           /* get uid */
+	sapi_cgibin_getenv,             /* getenv */
+ 
+	php_error,                      /* error handler */
+ 
+	NULL,                           /* header handler */
+	sapi_cgi_send_headers,          /* send headers handler */
+	NULL,                           /* send header handler */
+ 
+	sapi_cgi_read_post,             /* read POST data */
+	sapi_cgi_read_cookies,          /* read Cookies */
+ 
+	sapi_cgi_register_variables,    /* register server variables */
+	sapi_cgi_log_message,           /* Log message */
+	NULL,                           /* Get request time */
+	NULL,                           /* Child terminate */
+	 
+	STANDARD_SAPI_MODULE_PROPERTIES
+	};
+	/* }}} */
+<p>
+	同样，以读取cookie为例，当我们在CGI环境下，在PHP中调用读取Cookie时， 最终获取的数据的位置是在激活SAPI时。它所调用的方法是read_cookies。 由SAPI实现来实现获取cookie，这样各个不同的SAPI就能根据自己的需要来实现一些依赖环境的方法。
+</p>
+	SG(request_info).cookie_data = sapi_module.read_cookies(TSRMLS_C);
+<p>
+	所有使用PHP的场合都需要定义自己的SAPI，例如在第一小节的Apache模块方式中， sapi_module是apache2_sapi_module，其对应read_cookies方法的是php_apache_sapi_read_cookies函数， 而在我们这里，读取cookie的函数是sapi_cgi_read_cookies。 从sapi_module结构可以看出flush对应的是sapi_cli_flush，在win或非win下，flush对应的操作不同， 在win下，如果输出缓存失败，则会和嵌入式的处理一样，调用php_handle_aborted_connection进入中断处理程序， 而其它情况则是没有任何处理程序。这个区别通过cli_win.c中的PHP_CLI_WIN32_NO_CONSOLE控制。
+</p>
