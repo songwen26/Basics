@@ -1454,3 +1454,224 @@ Web服务器程序：
 <p>
 	所有使用PHP的场合都需要定义自己的SAPI，例如在第一小节的Apache模块方式中， sapi_module是apache2_sapi_module，其对应read_cookies方法的是php_apache_sapi_read_cookies函数， 而在我们这里，读取cookie的函数是sapi_cgi_read_cookies。 从sapi_module结构可以看出flush对应的是sapi_cli_flush，在win或非win下，flush对应的操作不同， 在win下，如果输出缓存失败，则会和嵌入式的处理一样，调用php_handle_aborted_connection进入中断处理程序， 而其它情况则是没有任何处理程序。这个区别通过cli_win.c中的PHP_CLI_WIN32_NO_CONSOLE控制。
 </p>
+####第三节 PHP脚本的执行
+#####程序的执行
+***
+<p>
+	1、php程序完成基本的准备工作后启动PHP及Zend引擎，加载注册的扩展模块。	
+</p>
+<p>
+	2、初始化完成后读取脚本文件，Zend引擎对脚本进行词法分析，语法分析。然后编译成opcode执行。如果安装了apc之类的opcode缓存，编译环节可能会被跳过而直接从缓存中读取opcode执行。
+</p>
+#####脚本的编译执行
+***
+<p>
+	PHP在读取到脚本文件后首先对代码进行词法分析，PHP的词法分析器是通过lex生成的，词法规则文件在$PHP_SRC/Zend_language_scanner.l，这一阶段lex会会将源代码按照词法规则切分一个一个的标记(token)。PHP中提供了一个函数token_get_all()，该函数接收一个字符串参数，返回一个按照词法规则切分好的数组。
+</p>
+	<?php 	
+	$code = <<<PHP_CODE
+	<?php
+	$str = "Hello, Tipi\n";
+	echo $str;
+	PHP_CODE;
+
+	var_dump(token_get_all($code));
+<p>
+	运行上面的脚本会输出如下：
+</p>
+	array (size=11)
+	  0 => 
+	    array (size=3)
+	      0 => int 376				//脚本开始标记
+	      1 => string '<?php		//匹配到的字符串
+	
+	' (length=7)
+	      2 => int 1
+	  1 => 
+	    array (size=3)
+	      0 => int 379
+	      1 => string ' ' (length=1)
+	      2 => int 2
+	  2 => string '=' (length=1)
+	  3 => 
+	    array (size=3)
+	      0 => int 379
+	      1 => string ' ' (length=1)
+	      2 => int 2
+	  4 => 
+	    array (size=3)
+	      0 => int 318
+	      1 => string '"Hello, Tipi
+	"' (length=14)
+	      2 => int 2
+	  5 => string ';' (length=1)
+	  6 => 
+	    array (size=3)
+	      0 => int 379
+	      1 => string '
+	
+	' (length=2)
+	      2 => int 3
+	  7 => string '@' (length=1)
+	  8 => 
+	    array (size=3)
+	      0 => int 319
+	      1 => string 'echo' (length=4)
+	      2 => int 4
+	  9 => 
+	    array (size=3)
+	      0 => int 379
+	      1 => string ' ' (length=1)
+	      2 => int 4
+	  10 => string ';' (length=1)
+<p>
+	这是在Zend引擎词法分析做的事情，将代码切分为一个个的标记，然后使用语法分析器(PHP使用bison生成语法分析器，规则见$PHP+SRC/Zend/zend_language_parser.y)，bison根据规则进行相应的处理，如果代码找不到匹配的规则，也就是语法错误时Zend引擎会停止，并输出错误信息。比如缺少括号，或者不符合语法规则的情况都会在这个环节检查。在匹配到相应的语法规则后，Zend引擎还会进行编译，将代码编译为opcode，完成后，Zend引擎会执行这些opcode，在执行opcode的过程还有可能会继续重复进行编译-执行，例如执行eval,include/require等语句，因为这些语句还会包含或者执行其他文件或者字符串中的脚本。
+</p>
+<p>
+	例如上例中的echo语句会编译为一条ZEND_ECHO指令，该指令由C函数zend_print_variable(zval* z)执行，将传递进来的字符串打印出来。为了方便理解，本例中省去了一些细节，如opcode指令和处理函数之间的映射关系等。
+</p>
+####词法分析和语法分析
+<p>
+	编程语言的编译器(compiler)或解释器(interpreter)一般包括两大部分：
+	<p>
+		1、读取源程序，并处理语言结构。
+	</p>
+	<p>
+		2、处理语言结构并生成目标程序。
+	</p>
+</p>
+<p>
+	Lex和Yacc可以解决第一个问题。第一个部分也可以分为两个部分：
+	<p>
+		1、将代码切分为一个个的标记(token)
+	</p>
+	<p>
+		2、处理程序的层级结构(hierarchical structure)
+	</p>
+</p>
+#####Lex/Flex
+***
+<p>
+	Lex读取词法规则文件，生成词法分析器。目前通常使用Flex以及Bison来完成同样的工作，Flex和Lex之间并不兼容，Bison则是兼容Yacc的实现。
+</p>
+<p>
+	词法规则文件一般以.l作为扩展名，flex文件由三个部分组成，三部分之间用%%分割：
+</p>
+	定义段
+	%%
+	规则段
+	%%
+	用户代码段
+<p>
+	例如以下一个用于统计文件字符、词以及行数的例子：
+</p>
+	%option noyywrap
+	%{
+	int chars = 0;
+	int words = 0;
+	int lines = 0;	
+	%}
+	
+	%%
+	[a-zA-Z]+ { words++; chars += strlen(yytext);}
+	\n { chars++; lines++;}
+	.  { chars++;}
+	%%
+
+	main(int argc, char **argv)
+	{
+		if(argc > 1){
+			if(!(yyin = fopen(argv[1], "r"))) {
+	            perror(argv[1]);
+	            return (1);
+	        }
+	        yylex();
+	        printf("%8d%8d%8d\n", lines, words, chars);
+		}
+	}
+<p>
+	该解释器读取文件内容，根据规则段定义的规则进行处理，规则后面大括号中包含的是动作，也就是匹配到该规则程序执行的动作，这个例子中的匹配动作时记录下文件的字符，词以及行数信息并打印出来。其中的规则使用正则表达式描述。
+</p>
+<p>
+	回到PHP的实现，PHP以前使用的是flex，后来PHP的词法解析改为re2c,$PHP_SRC/Zend/zend_language_scanner.l文件是re2c的规则文件，所以如果修改该规则文件需要安装re2c才能重新编译。
+</p>
+#####Yacc/Bison
+***
+<p>
+	Bison和flex类似，也是使用%%作为分界不过Bison接受的标记(token)序列，根据定义的语法规则，来执行一些动作，Bison使用巴科斯范式(BNF)来描述语法。
+</p>
+<p>
+	下面以php中echo语句的编译为例：echo可以接受多个参数， 这几个参数之间可以使用逗号分隔，在PHP的语法规则如下：
+</p>
+	echo_expr_list:
+			echo_expr_list ',' expr { zend_do_echo(&$3 TSRMLS_CC); }
+		|	expr					{ zend_do_echo(&$1 TSRMLS_CC); }	
+	;
+<p>
+	其中echo_expr_list规则为一个递归规则，这样就允许接受多个表达式作为参数。在上例中匹配到echo时会执行zend_do_echo函数，函数中的参数可能看起来比较奇怪，其中的$3表示前面规则的第三个定义，也就是expr这个表达式的值，zend_do_echo函数则根据表达式的信息编译opcode，其他的语法规则也类似。这和C语言或者JAVA的编译器类似，不过GCC等编译器时将代码编译为机器码，Java编译器将代码编译为字节码。
+</p>
+####opcode
+<p>
+	opcode是计算机指令中的一部分，用于指定要执行的操作，指令的格式和规范由处理器的指令规范指定。除了指令本身以外通常还有指令所需要的操作数，可能有的指令不需要显示的操作数。这些操作数可能是寄存器中的值，堆栈中的值，某块内存的值或者IO端口中的值等等。
+</p>
+<p>
+	通常opcode还有另一种称谓: 字节码(byte codes)。 例如Java虚拟机(JVM)，.NET的通用中间语言(CIL: Common Intermeditate Language)等等。
+</p>
+#####PHP的opcode
+***
+<p>	
+	PHP是构建在Zend虚拟机(Zend VM)之上的。PHP的opcode就是Zend虚拟机中的指令。
+</p>
+<p>
+	在PHP实现内部，opcode由如下的结构体表示：
+</p>
+	struct _zend_op {
+		opcode_handler_t handler;		//执行该opcode时调用的处理函数
+		znode result;
+		znode op1;
+		znode op2;
+		ulong extended_value;
+		uint lineno;
+		zend_uchar opcode;			// opcode代码
+	}
+<p>
+	和CPU的指令类似，有一个标示指令的opcode字段，以及这个opcode所操作的操作数，PHP不像汇报那么底层，在脚本实际执行的时候可能还需要其他更多的信息，extended_value字段就保存了这类信息，其中的result域则是保存该指令执行完成后的结果。
+</p>
+<p>
+	例如如下代码是在编译器遇到print语言的时候进行编译的函数：
+</p>
+	void zend_do_print(znode *result, const znode *arg TSRMLS_DC)
+	{
+		zend_op *opline = get_next_op(CG(active_op_array) TSRMLS_CC);
+
+		opline->result.op_type = IS_TMP_VAR;
+	    opline->result.u.var = get_temporary_variable(CG(active_op_array));
+	    opline->opcode = ZEND_PRINT;
+	    opline->op1 = *arg;
+	    SET_UNUSED(opline->op2);
+	    *result = opline->result;
+	}
+<p>
+	这个函数新创建一条zend_op，将返回值的类型设置为临时变量(IS_TMP_VAR)，并为临时变量申请空间， 随后指定opcode为ZEND_PRINT，并将传递进来的参数赋值给这条opcode的第一个操作数。这样在最终执行这条opcode的时候， Zend引擎能获取到足够的信息以便输出内容。
+</p>
+<p>
+	下面这个函数是在编译器遇到echo语句的时候进行编译的函数:
+</p>
+	void zend_do_echo(const znode *arg TSRMLS_DC)
+	{
+	    zend_op *opline = get_next_op(CG(active_op_array) TSRMLS_CC);
+	 
+	    opline->opcode = ZEND_ECHO;
+	    opline->op1 = *arg;
+	    SET_UNUSED(opline->op2);
+	}
+<p>
+	可以看到echo处理除了指定opcode以外，还将echo的参数传递给op1，这里并没有设置opcode的result结果字段。 从这里我们也能看出print和echo的区别来，print有返回值，而echo没有，这里的没有和返回null是不同的， 如果尝试将echo的值赋值给某个变量或者传递给函数都会出现语法错误。
+</p>
+<p>
+	PHP脚本编译为opcode保存在op_array中，其中内部存储的结构如下：
+</p>
+	
+
+
+
