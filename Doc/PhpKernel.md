@@ -1671,7 +1671,154 @@ Web服务器程序：
 <p>
 	PHP脚本编译为opcode保存在op_array中，其中内部存储的结构如下：
 </p>
+	struct _zend_op_array {
+		/* Common elements */
+		zend_uchar type;
+		char *function_name;		// 如果是用户定义的函数则，这里将保存函数的名字
+		zend_class_entry *scope;
+		zend_uint fn_flags;
+		union _zend_function *prototype;
+		zend_uint num_args;
+		zend_uint required_num_args;
+		zend_arg_info *arg_info;
+		zend_bool pass_rest_by_reference;
+		unsigned char return_reference;
+		/* END of common elements */
+
+		zend_bool done_pass_two;
+		
+		zend_uint *refcount;
+
+		zend_op *opcode;		//opcode数组
+		
+		zend_uint last, size;
 	
+		zend_compiled_variable *vars;
+		int last_var, size_var;
+	}
+<p>
+	如上面的注释，opcodes保存在这里，在执行的时候由下面的execute函数执行：
+</p>
+	ZEND_API void execute(zend_op_array *op_array TERMLS_DC)
+	{
+		// …… 循环执行op_array中的opcode或者执行其他op_array中的opcode
+	}
+<p>
+	PHP有三种方式进行opcode的处理：CALL，SWITCH和GOTO，PHP默认使用CALL的方式，也就是函数调用的方式，由于opcode执行是每个PHP程序频繁需要进行的操作，可以使用SWITCH或者GOTO的方式分发，通常GOTO的效率相对高一些，不过效率是否提高依赖于不同的CPU。
+</p>
+####opcode处理函数查找
+#####Debug法
+***
+<p>
+	在学习研究PHP内核的过程中，经常通过opcode来查看代码的执行顺序，opcode的执行由在文件Zend/zend_vm_execute.h中的execute函数执行。
+</p>
+	ZEND_API void execute(zend_op_array *op_array TSRMLS_DC)
+	{
+		...
+		zend_vm_enter;
+		...
+		if ((ret = EX(opline)->handler(execute_data TSRMLS_CC)) > 0){
+			switch (ret){
+				case 1:
+					EG(in_execution) = original_in_execution;
+					return;
+				case 2:
+					op_array = EG(active_op_array);
+					return;
+				case 3:
+					execute_data = EG(current_execute_data);
+				default:
+					break;
+			}
+		}
+		...
+	}
+<p>
+	在执行的过程中，EX(opline)->handler（展开后为 *execute_data->opline->handler）存储了处理当前操作的函数指针。使用gdb调试，在execute函数处增加断点，使用p命令可以打印出类似这样的结果：
+</p>
+	(gdb) p *execute_data->opline->handler
+	$l = {int (zend_execute_data *)} 0x10041f394 <ZEND_NOP_SPEC_HANDLER>
+<p>
+	这样就可以方便的知道当前要执行的处理函数了，这种debug的方法。这种方法比较麻烦，需要使用gdb来调试。
+</p>
+#####计算法
+***
+<p>
+	在PHP内部有一个函数用来快速的返回特定opcode对应的opcode处理函数指针：zend_vm_opcode_handler()函数：
+</p>
+	static opcode_handler_t
+	zend_vm_get_opcode_handler(zend_uchar opcpde, zend_op* op)
+	{
+		static const int zend_vm_decode[] = {
+			 _UNUSED_CODE, /* 0              */
+            _CONST_CODE,  /* 1 = IS_CONST   */
+            _TMP_CODE,    /* 2 = IS_TMP_VAR */
+            _UNUSED_CODE, /* 3              */
+            _VAR_CODE,    /* 4 = IS_VAR     */
+            _UNUSED_CODE, /* 5              */
+            _UNUSED_CODE, /* 6              */
+            _UNUSED_CODE, /* 7              */
+            _UNUSED_CODE, /* 8 = IS_UNUSED  */
+            _UNUSED_CODE, /* 9              */
+            _UNUSED_CODE, /* 10             */
+            _UNUSED_CODE, /* 11             */
+            _UNUSED_CODE, /* 12             */
+            _UNUSED_CODE, /* 13             */
+            _UNUSED_CODE, /* 14             */
+            _UNUSED_CODE, /* 15             */
+            _CV_CODE      /* 16 = IS_CV     */
+		};
+		return zend_opcode_handlers[
+			opcode * 25 + zend_vm_decode[op->opl.op_type] * 5
+					+ zend_vm_decode[op->op2.op_type]];
+	}
+<p>
+	由上面的代码可以看到，opcode到php内部函数指针的查找是由下面的公式来进行的：
+</p>
+	opcode * 25 + zend_vm_decode[op->opl.op_type] * 5
+					+ zend_vm_decode[op->op2.op_type]];
+<p>
+	然后将其计算的数值作为索引到zend_init_opcodes_handlers数组中进行查找。不过这个数组实在是太大了，有3851个元素，手动查找和计算都比较麻烦。
+</p>
+#####命名查找法
+***
+<p>
+	上面的两种方法其实都是比较麻烦的，在定位某一opcode的实现执行代码的过程中，都不是不对程序进行执行或者计算中间值。而在追踪的过程中，发现处理函数名称是有一定规则的。这里以函数调用的opcode为例，调用某函数的opcode及其对应在php内核中实现的处理函数如下：
+</p>
+	//函数调用：
+	DO_FCALL ==> ZEND_DO_FCALL_SPEC_CONST_HANDLER
+	
+	//变量赋值：
+	ASSIGN =>	ZEND_ASSIGN_SPEC_VAR_CONST_HANDLER
+				ZEND_ASSIGN_SPEC_VAR_TMP_HANDLER
+                ZEND_ASSIGN_SPEC_VAR_VAR_HANDLER
+                ZEND_ASSIGN_SPEC_VAR_CV_HANDLER 
+
+	//变量加法：
+	ASSIGN_SUB =>	ZEND_ASSIGN_SUB_SPEC_VAR_CONST_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_VAR_TMP_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_VAR_VAR_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_VAR_UNUSED_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_VAR_CV_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_UNUSED_CONST_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_UNUSED_TMP_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_UNUSED_VAR_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_UNUSED_UNUSED_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_UNUSED_CV_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_CV_CONST_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_CV_TMP_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_CV_VAR_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_CV_UNUSED_HANDLER,
+                    ZEND_ASSIGN_SUB_SPEC_CV_CV_HANDLER,
+<p>
+	在上面的命名就会发现，其实处理函数的命名是有以下规律的：
+</p>
+	ZEND_[opcode]_SPEC_(变量类型1)_(变量类型2)_HANDLER
+<p>
+	这里的变量类型1和变量类型2是可选的，如果同时存在，那就是左值和右值，归纳有下几类：VAR TMP CV UNUSED CONST 这样可以根据相关的执行场景来判定。 
+</p>
+#####日志记录法
+***
 
 
 
