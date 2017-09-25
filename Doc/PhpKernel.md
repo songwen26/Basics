@@ -1819,6 +1819,72 @@ Web服务器程序：
 </p>
 #####日志记录法
 ***
+<p>
+	这种方法是上面计算法的升级，同时也是比价精准的方式。在zend_vm_opcode_handler方法中添加以下代码：
+</p>
+	static opcode_handler_t
+	zend_vm_get_opcode_handler(zend_uchar opcode, zend_op* op)
+	{
+		static const int zend_vm_decode[] = {
+			_UNUSED_CODE, /* 0              */
+            _CONST_CODE,  /* 1 = IS_CONST   */
+            _TMP_CODE,    /* 2 = IS_TMP_VAR */
+            _UNUSED_CODE, /* 3              */
+            _VAR_CODE,    /* 4 = IS_VAR     */
+            _UNUSED_CODE, /* 5              */
+            _UNUSED_CODE, /* 6              */
+            _UNUSED_CODE, /* 7              */
+            _UNUSED_CODE, /* 8 = IS_UNUSED  */
+            _UNUSED_CODE, /* 9              */
+            _UNUSED_CODE, /* 10             */
+            _UNUSED_CODE, /* 11             */
+            _UNUSED_CODE, /* 12             */
+            _UNUSED_CODE, /* 13             */
+            _UNUSED_CODE, /* 14             */
+            _UNUSED_CODE, /* 15             */
+            _CV_CODE      /* 16 = IS_CV     */
+		}
+		//很显然，我们把opcode和相对应的写到了/tmp/php.log文件中
+		int op_index;
+		op_index = opcode * 25 + zend_vm_decode[op->opl.op_type] * 5 + zend_vm_decode[op->op2.op_type];
+		
+		FILE *strem;
+		if((stream = fopen("/tmp/php.log", "a+")) != NULL){
+			fprintf(stream, "opcode: %d, zend_opcpde_handler_index:%d\n", opcode, op_index);
+		}
+		fclose(stream);
+
+		return zend_opcode_handlers[
+			opcode * 25 + zend_vm_decode[op->op1.op_type] * 5
+					+ zend_vm_decode[op-op2.op_type>]];
+	}
+<p>
+	然后，就可以在/tmp/php.log文件中生成类似如下结果：
+</p>
+	opcode: 38 , zend_opcode_handlers_index:970
+<p>
+	前面的数字是opcode的，我们可以这里查到：http://php.net/manual/en/internals2.opcodes.list.php 后面的数字是static const opcode_handler_t_labels[]索引，里面对应了处理函数的名称，对应源码文件是Zend/zend_vm_execute.h(第30077行左右)。这是个超大的数组，PHP5.3.4中有3851元素。
+</p>
+###第三章 变量及数据类型
+<p>
+	变量具有三个基本组成部分：
+	<p>
+	1、名称 变量的标识符
+	</p>
+	<p>
+	2、类型 变量的类型
+	</p>
+	<p>
+	3、值内容 这个标示所代表的具体内容
+	</p>
+</p>
+<p>
+	PHP中组成变量的字母可以是英文字母a-z,A-Z,还可以是ASCII字符从127到255(0x7f-0xff)。变量名是区分大小写的。
+</p>
+<p>
+	
+</p>
+
 
 
 
