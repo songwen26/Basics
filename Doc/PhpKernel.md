@@ -1882,9 +1882,186 @@ Web服务器程序：
 	PHP中组成变量的字母可以是英文字母a-z,A-Z,还可以是ASCII字符从127到255(0x7f-0xff)。变量名是区分大小写的。
 </p>
 <p>
-	
+	除了变量本身，在PHP中我们经常会接触到与变量相关的一些概念，比如：常量，全局变量，静态变量以及类型转换等。 本章我们将介绍这些与变量相关的实现。其中包括PHP本身的变量底层存储结构、弱类型系统的实现以及这些类型之间的相互转换等。
 </p>
-
+###第一节 变量的结构和类型
+####一.PHP变量类型及存储结构
+***
+<p>
+	PHP中，存在8种变量类型，可以分为三类：
+	<p>
+	标量类型：boolean,integer,float(double),string
+	</p>
+	<p>
+	复合类型：array,object
+	</p>
+	<p>
+	特殊类型：resource,NULL
+	</p>
+</p>
+#####1.变量存储结构
+***
+<p>
+变量的值存储到以下所示zval结构体中。zval结构体定义在Zend/zend.h文件，其结构如下：
+</p>
+	typedef struct _zval_struct zval;
+	struct _zval_struct {
+		/* Variable information */
+		zvalue_value value;		/* value */
+		zend_uint refcount__gc;
+		zned_uchar type;		/* active type */
+		zend_uchar is_ref_gc;
+	}
+<p>
+	zval结构体中有四个字段，其含义分别为：
+</p>
+<table>
+<thead>
+<tr>
+  <th align="left">属性名</th>
+  <th align="left">含义</th>
+  <th align="center">默认值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td align="left">refcount__gc</td>
+  <td align="left">表示引用计数</td>
+  <td align="center">1</td>
+</tr>
+<tr>
+  <td align="left">is_ref__gc</td>
+  <td align="left">表示是否为引用</td>
+  <td align="center">0</td>
+</tr>
+<tr>
+  <td align="left">value</td>
+  <td align="left">存储变量的值</td>
+  <td align="center"></td>
+</tr>
+<tr>
+  <td align="left">type</td>
+  <td align="left">变量具体的类型</td>
+  <td align="center"></td>
+</tr>
+</tbody>
+</table>
+<p>
+	在PHP5.3之后，引入了新的垃圾收集机制，引用计数和引用的字段名改为refcount__gc和is_ref__gc。在此之前为refcount和is__ref。
+</p>
+#####2.变量类型：
+***
+<p>
+	zval结构体的type字段就是实现弱类型最关键的字段了，type的值可以为：IS_NULL、IS_BOOL、IS_DOUBLE、IS_STRING、IS_ARRAY、IS_RESOURCE之一。从字面上就很好理解，他们只是类型的唯一标示，根据类型的不同将不同点的值存储到value字段。除此之外，和他们定义在一起的类型还有IS_CONSTANT和IS_CONSTANT_ARRAY。
+</p>
+#####二.变量的值存储
+***
+	typedef union _zvalue_value {
+		long lval;			/* long value */
+		double dval;		/* double value */
+		struct {
+			char *val;
+			int len;
+		} str;
+		HashTable *ht;		/* hash table value */
+		zend_object_value obj;
+	} zvalue_value;
+<p>
+	这里使用联合体而不是用结构体是出于空间利用率的考虑，因为一个变量同时只能属于一种类型。如果使用结构体的话将会不必要的浪费空间，而PHP中的所有逻辑都围绕变量来进行的，这样的话，内存浪费将是十分大的。这种做法成本小但收益非常大。
+</p>
+<p>
+	各种类型的数据会使用不同的方法来进行变量值的存储，其对应赋值方式如下：
+</p>
+<p>
+	一般类型
+</p>
+<table>
+<thead>
+<tr>
+  <th align="left">变量类型</th>
+  <th align="center">宏</th>
+  <th align="left"></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td align="left">boolean</td>
+  <td align="left">ZVAL_BOOL</td>
+  <td align="left" rowspan='3'>
+    布尔型/整型的变量值存储于(zval).value.lval中，其类型也会以相应的IS_*进行存储。
+    <pre class="c"> Z_TYPE_P(z)=IS_BOOL/LONG;  Z_LVAL_P(z)=((b)!=0); </pre>
+</td>
+</tr>
+<tr>
+  <td align="left">integer</td>
+  <td align="left">ZVAL_LONG</td>
+</tr>
+<tr>
+  <td align="left">float</td>
+  <td align="left">ZVAL_DOUBLE</td>
+</tr>
+<tr>
+  <td align="left">null</td>
+  <td align="left">ZVAL_NULL</td>
+  <td align="left" >
+    NULL值的变量值不需要存储，只需要把(zval).type标为IS_NULL。
+    <pre class="c"> Z_TYPE_P(z)=IS_NULL; </pre>
+    </td>
+</tr>
+<tr>
+  <td align="left">resource</td>
+  <td align="left">ZVAL_RESOURCE</td>
+  <td align="left" >
+    资源类型的存储与其他一般变量无异，但其初始化及存取实现则不同。
+    <pre class="c"> Z_TYPE_P(z) = IS_RESOURCE;  Z_LVAL_P(z) = l; </pre>
+    </td>
+</tr>
+</tbody>
+</table>
+<p>
+字符串String
+</p>
+<p>
+	字符串的类型标示和其他数据类型一样，不过在存储字符串时多了一个字符串长度的字段。
+</p>
+	struct {
+		char *val;
+		int len;
+	}
+<p>
+	C中字符串是以\0结尾的字符数组，这里多存储了字符串的长度，这和我们在设计数据库时增加的冗余字段异曲同工。因为要实时获取到字符串的长度的时间复杂度是0(n),而字符串的操作在PHP是非常频繁的，这样能避免重复计算字符串的长度，这能节省大量的时间，是空间换时间的做法。
+</p>
+<p>
+	这么看在PHP中的strlen()函数可以在常数时间内获取到字符串的长度。计算机语言字符串的操作都非常之多，所以大部分高级语言中都会存储字符串的长度。
+</p>
+<p>
+	数组Array
+</p>
+<p>
+	数组是PHP中最常用，也是最强大变量类型，它可以存储其他类型的数据，而且提供各种内置操作函数。数组的存储相对于其他变量要复杂一些， 数组的值存储在zvalue_value.ht字段中，它是一个HashTable类型的数据。 PHP的数组使用哈希表来存储关联数据。哈希表是一种高效的键值对存储结构。PHP的哈希表实现中使用了两个数据结构HashTable和Bucket。 PHP所有的工作都由哈希表实现.
+</p>
+<p>
+	对象Object
+</p>
+<p>
+	在面向对象语言中，我们能自己定义自己需要的数据类型，包括类的属性，方法等数据。而对象则是类的一个具体实现。 对象有自身的状态和所能完成的操作。
+</p>
+<p>
+	PHP的对象是一种复合型的数据，使用一种zend_object_value的结构体来存放。其定义如下：
+</p>
+	typedef struct _zend_object_value {
+		zend_object_handle handle; 			//unsigned int类型， EG(objects_store).object_buckets的索引
+		zend_object_handlers *handlers;
+	} zend_object_value;
+<p>
+	PHP的对象只有在运行时才会被创建，前面的章节介绍了EG宏，这是一个全局结构体用于保存在运行时的数据。 其中就包括了用来保存所有被创建的对象的对象池，EG(objects_store)，而object对象值内容的zend_object_handle域就是当前 对象在对象池中所在的索引，handlers字段则是将对象进行操作时的处理函数保存起来。 这个结构体及对象相关的类的结构_zend_class_entry.
+</p>
+<p>	
+	PHP的弱变量容器的实现方式是兼容并包的形式体现，针对每种类型的变量都有其对应的标记和存储空间。 使用强类型的语言在效率上通常会比弱类型高，因为很多信息能在运行之前就能确定，这也能帮助排除程序错误。 而这带来的问题是编写代码相对会受制约。
+</p>
+<p>
+	PHP主要的用途是作为Web开发语言，在普通的Web应用中瓶颈通常在业务和数据访问这一层。不过在大型应用下语言也会是一个关键因素。 facebook因此就使用了自己的php实现。将PHP编译为C++代码来提高性能。不过facebook的hiphop并不是完整的php实现， 由于它是直接将php编译为C++，有一些PHP的动态特性比如eval结构就无法实现。当然非要实现也是有方法的， hiphop不实现应该也是做了一个权衡。
+</p>
 
 
 
