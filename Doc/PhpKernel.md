@@ -2459,7 +2459,7 @@ Web服务器程序：
 	如代码，申请的空间大小加上了字符串key的长度，然后把key拷贝到新申请的空间里。 在后面比如需要进行hash查找的时候就需要对比key这样就可以通过对比p->arKey和查找的key是否一样来进行数据的 查找。申请空间的大小-1是因为结构体内本身的那个字节还是可以使用的。
 </p>
 <div class="book-img" style="text-align: center;">
-<img src="/img/03-01-02-zend_hashtable.png" alt="Zend引擎哈希表结构和关系">
+<img src="/img/03-01-02-zend_hashtable1.png" alt="Zend引擎哈希表结构和关系">
 <div class="book-img-desc">Zend引擎哈希表结构和关系</div>
 </div>
 <p>
