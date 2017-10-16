@@ -2572,5 +2572,183 @@ Web服务器程序：
 </p>
 ####链表简介
 <p>
-	   
+	Zend引擎中实现了很多基本的数据结构，这些接口贯穿PHP和Zend引擎的始末，这些数据结构以及相应的操作接口都可以作为通用的接口来使用。   
 </p>
+<p>
+	在Zend引擎中HashTable的使用非常频繁，这得益于他良好的查找性能，如果读者看过 前一小节会知道哈希表会预先分配内容以提高性能，而很多时候数据规模不会很大， 固然使用哈希表能提高查询性能，但是某些场景下并不会对数据进行随机查找， 这时使用哈希表就有点浪费了。
+</p>
+<p>
+	Zend引擎中的链表是双链表，通过双链表的任意节点都能方便的对链表进行遍历。
+</p>
+	Zend引擎的哈希表实现是哈希表和双链表的混合实现，这也是为了方便哈希表的遍历。
+<p>
+	链表的实现很简单，通常只需要三个关键元素：
+	<p>1、指向上一个元素的指针</p>
+	<p>2、指向下一个元素的指针</p>
+	<p>3、数据容器</p>
+</p>
+<p>
+	Zend引擎的实现也很简单，如下两个是核心的数据接口，第一个是元素节点，第二个是链表容器。
+</p>
+	typedef struct _zend_llist_element {
+		struct _zend_llist_element *next;
+		struct _zend_llist_element *prev;
+		char data[1];	/* Needs to always be last in the struct */
+	} zend_llist_element;
+
+	typedef struct _zend_llist {
+		zend_llist_element *head;
+		zend_llist_element *tail;
+		size_t count;
+		size_t size;
+		llist_dtor_func_t dtor;
+		unsigned char persistent;
+		zend_llist_element *traverse_ptr;
+	} zned_llist;
+<p>
+	节点元素只含有前面提到的3个元素，第三个字段data和哈希表实现一样，是一个柔性结构体。
+</p>
+<div class="book-img">
+<img src="./img/03-01-03-zend_llist.png" alt="Zend zend_llist结构">
+<div class="book-img-desc">Zend zend_llist结构</div>
+</div>
+<p>
+	如上图所示，data字段的空间并不是只有一个字节，我们先看看元素插入的实现：
+</p>
+	ZEND_API void zend_llist_add_element(zend_llist *l, void *element)
+	{
+		zend_llist_element *tmp = pemalloc(sizeof(zend_llist_element)+l->size-1, l->persistent);
+
+		tmp->prev = l->tail;
+		tmp->next = NULL;
+		if (l->tail){
+			l->tail->mext = tmp;
+		} else {
+			l->head = tmp;
+		}
+		l->tail = tmp;
+		memcpy(tmp->data, element, l->size);
+
+		++l->count;
+	}
+<p>
+	如方法第一行所示，申请空间是额外申请了l->size -1 的空间。l->size是链表创建时指定的，zend_llist_element结构体最后那个字段的注释提到这个字段必须放到最后也是这个原因，例如curl扩展中的例子：zend_llist_init(&(*ch)->to_free, sizeof(struct curl_slist), (llist_dtor_func_t)curl_free_slist, 0);, size指的是要插入元素的空间大小，这样不同的链表就可以插入不同大小的元素了。
+	为了提高性能增加了链表头和尾节点地址，以及链表中元素的个数。
+	最后的traverse_ptr 字段是为了方便在遍历过程中记录当前链表的内部指针，和哈希表中的：Bucket *pInternalPointer；字段一个作用。
+</p>
+#####操作接口
+***
+<p>
+	操作接口比较简单，这里简单说一下PHP源码中的一个小的约定，
+	如下为基本的链表遍历操作接口：
+</p>
+	/* traversal */
+	ZEND_API void *zend_llist_get_first_ex(zned_llist *l, zend_llist_position *pos);
+	ZEND_API void *zend_llist_get_last_ex(zend_llist *l, zend_llist_position *pos);
+	ZEND_API void *zend_llist_get_next_ex(zend_llist *l, zend_llist_position *pos);
+	ZEND_API void *zend_llist_get_prev_ex(zend_llist *l, zend_llist_position *pos);
+
+	#define zend_llist_get_first(l) zend_llist_get_first_ex(l, NULL)
+	#define zend_llist_get_last(l) zend_llist_get_last_ex(l, NULL)
+	#define zend_llist_get_next(l) zend_llist_get_next_ex(l, NULL)
+	#define zend_llist_get_prev(l) zend_llist_get_prev_ex(l, NULL)
+<p>
+	一般情况下我们遍历只需要使用后面的那组宏定义函数即可，如果不想要改变链表内部指针，可以主动传递当前指针所指向的位置
+</p>
+<p>
+	PHP中很多的函数都会有*_ex()以及不带ex两个版本的函数，这主要是为了方便使用，和上面的代码一样，ex版本的通常是一个功能较全或者可选参数较多的版本，而在代码中很多地方默认的参数数值都一样，为了方便使用，再封装一个普通版本。
+</p>
+###第二季 常量
+<p>
+	常量，顾名思义是一个常态的量值。它与值只绑定一次，它的作用在于有助于增加程序的可读性和可靠性。在PHP中，常量的名字是一个简单值得标识符，在脚本执行期间该值不能改变。和变量一样，常量默认为大小写敏感，但是按照我们的习惯常量标识符总是大写的。常量名和其它任何PHP标签遵循同样的命名规则。合法的常量名以字母或下划线开始，后面跟着任何字母，数字或下划线。在这一个小节我们一起看下常量与我们常见的变量有啥区别，它在执行期间不可改变的特性是如何实现的以及常量的定义过程。
+</p>
+<p>
+	首先看下常量与变量的区别，常量是在变量的zval结构的基础上添加了一额外的元素。如下所示为PHP中常量的内部结构。、
+</p>
+####常量的内部结构
+***
+	typedef struct _zend_constant {
+		zval value;		/* zval结构，PHP内部变量的存储结构 */
+		int flags；		/* 常量的标记如 CONST_PERSISTENT | CONST_CS */
+		char *name;		/* 常量名称 */
+		uint name_len;
+		int module_number;	/* 模块号 */
+	} zend_constant;
+<p>
+	在Zend/zend_constants.h文件的33行可以看到如上所示的结构定义。在常量的结构中，除了与变量一样的zval结构，它还包括属于常量的标记，常量名以及常量所在的模块号。
+</p>
+<p>
+	在了解了常量的存储结构后，我们来看PHP常量的定义过程。一个例子。
+</p>
+	define('TIPI','Thinking In PHP Internal');
+<p>
+	这是一个很常规的常量定义过程，它使用了PHP的内置函数define。常量名为TIPI，值为一个字符串，存放在zval结构中。从这个例子出发，我们看下define定义常量的过程实现。
+</p>
+####define定义常量的过程
+***
+<p>
+	define是PHP的内置函数，在Zend/zend_builtin_functions.c文件中定义了此函数。如下所示为部分源码：	
+</p>
+	/* {{{ proto bool define(string constant_name, mixed value, boolean case_insensitive=false) Define a new constant */
+	ZEND_FUNCTION(define)
+	{
+		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz|b", &name,
+                &name_len, &val, &non_cs) == FAILURE) 
+		{
+			return;
+		}
+
+		…… // 类常量定义 此处不做介绍
+		…… // 值类型判断和处理
+		
+		c.value = *val;
+		zval_copy_ctor(&c.value);
+		if (val_free) {
+			zval_ptr_dtor(&val_free);
+		}
+		c.flags = case_sensitive;
+		c.name = zend_strndup(name, name_len);
+		c.name_len = name_len+1;
+		c.module_number = PHP_USER_CONSTANT;
+		if (zend_register_constant(&c TSRMLS_CC) === SUCCESS ){
+			RETURN_TRUE;
+		} else {
+			RETURN_FALSE;
+		}
+
+	}
+<p>
+	上面的代码已经对对象和类常量做了简化处理，其实现在是一个将传递的参数传递给新建的zend_constant结构，并将这个结构体注册到常量列表中的过程。关于大小写敏感，函数的第三个参数表示是否大小不敏感，默认为false(大小写敏感)。这个参数最后会赋值给zend_constant结构体的flags字段。其在函数中实现代码如下：
+</p>
+	zend_bool non_cs = 0;				// 第三个参数的临时存储变量
+	int case_sensitive = CONST_CS；		// 是否大小写敏感，默认为1
+
+	if(non_cs) {		// 输入为真，大小写不敏感
+		case_sensitive = 0;
+	}
+
+	c.flags = case_sensitive;		//  赋值给结构体字段
+<p>
+	从上面的define函数的实现来看，PHP对于常量的名称在定义时其实是没有所谓的限制。如下所示代码：
+</p>
+	define('^_^', 'smile');
+ 
+	if (defined('^_^')) {
+	    echo 'yes';
+	}else{
+	    echo 'no';
+	}
+	//$var = ^_^;   //语法错误
+	$var = constant("^_^");
+<p>
+	通过define函数测试表示，^_^这个常量已经定义好，这样的常量无法直接调用， 只能使用constant()方法来获取到，否则在语法解析时会报错，因为它不是一个合法的标示符。
+</p>
+
+
+
+
+
+
+
+
+
