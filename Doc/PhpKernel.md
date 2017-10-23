@@ -2761,9 +2761,88 @@ Web服务器程序：
 	通过define()函数定义的常量的模块编码都是PHP_USER_CONSTANT，这表示是用户定义的常量。 除此之外我们在平时使用较多的常量：如错误报告级别E_ALL, E_WARNING等常量就有点不同了。 这些是PHP内置定义的常量，他们属于标准常量。
 </p>
 <p>
-	在Zend引擎启动后，会执行如下的标准常量注册操作。
+	在Zend引擎启动后，会执行如下的标准常量注册操作。php_module_startup()->zend_startup()->zend_register_standard_constants()
 </p>
-
-
+	void zend_register_standard_constants(TSRMLS_D)
+	{
+		...// 若干常量以REGISTER_MAIN_LONG_CONSTANT设置，
+		REGSTER_MAIN_LONG_CONSTANT("E_ALL",E_ALL,CONST_PERSISTENT | CONST_CS);
+		...
+	}
+<p>
+	REGISTER_MAIN_LONG_CONSTANT()是一个宏，用于注册一个长整型数字的常量，因为C是强类型语言，不同类型的数据等分别处理，以上的宏展开到下面这个函数。
+</p>
+	ZEND_API void zend_register_long_constant(const char *name, uint name_len, lang lval, int flags, int module_number TSRMLS_DC)
+	{
+		zend_constant c;
+		
+		c.value.type = IS_LONG；
+		c.value.value.lval = lval;
+		c.flags flags;
+		c.name = zend_strndup(name, name_len-1);
+		c.name_len = name_len;
+		c.module_number = module_number;
+		zend_register_constant(&c TSRMLS_CC);
+	}
+<p>
+	代码很容易理解，前面看到注册内置常量都是用了CONST_PERSISTENT标志位，也就是或，这些常量都是持久化常量。
+</p>
+#####魔术常量
+***
+<p>
+	PHP提供了大量的预定义常量，有一些是内置的，也有一些是扩展提供的，只有在加载了这些扩展库时才会出现。
+</p>
+<p>
+	不过PHP中有七个魔术常量，他们的值其实是变化的，它们的值随着它们在代码中的位置改变而改变。所以称他们为魔术变量。例如__LINE__的值就依赖于它在脚本中所处的行来决定。这些特殊的常量不区分大小写。在手册这几个变量的简单说明如下：
+</p>
+<p>几个PHP的魔术常量</p>
+<table>
+<thead>
+<tr>
+  <th>名称</th>
+  <th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>&#95;&#95;LINE&#95;&#95;</td>
+  <td>文件中的当前行号</td>
+</tr>
+<tr>
+  <td>&#95;&#95;FILE&#95;&#95;</td>
+  <td>文件的完整路径和文件名。如果用在被包含文件中，则返回被包含的文件名。自 PHP 4.0.2 起，<strong>FILE</strong> 总是包含一个绝对路径（如果是符号连接，则是解析后的绝对路径），而在此之前的版本有时会包含一个相对路径。</td>
+</tr>
+<tr>
+  <td>&#95;&#95;DIR&#95;&#95;</td>
+  <td>文件所在的目录。如果用在被包括文件中，则返回被包括的文件所在的目录。它等价于 dirname(<strong>FILE</strong>)。除非是根目录，否则    目录中名不包括末尾的斜杠。（PHP 5.3.0中新增）</td>
+</tr>
+<tr>
+  <td>&#95;&#95;FUNCTION&#95;&#95;</td>
+  <td>函数名称（PHP 4.3.0 新加）。自 PHP 5 起本常量返回该函数被定义时的名字（区分大小写）。在 PHP 4 中该值总是小写    字母的</td>
+</tr>
+<tr>
+  <td>&#95;&#95;CLASS&#95;&#95;</td>
+  <td>类的名称（PHP 4.3.0 新加）。自 PHP 5 起本常量返回该类被定义时的名字（区分大小写）。在 PHP 4 中该值总是小写字母的</td>
+</tr>
+<tr>
+  <td>&#95;&#95;METHOD&#95;&#95;</td>
+  <td>类的方法名（PHP 5.0.0 新加）。返回该方法被定义时的名字（区分大小写）。</td>
+</tr>
+<tr>
+  <td>&#95;&#95;NAMESPACE&#95;&#95;</td>
+  <td>当前命名空间的名称（大小写敏感）。这个常量是在编译时定义的（PHP 5.3.0 新增）</td>
+</tr>
+</tbody>
+</table>
+	PHP中的一些比较魔术的变量或者标示都习惯使用下划线来进行区分，所以在编写PHP代码时也尽量不要定义双下线开头的常量。
+<p>PHP内核会在词法解析时将这些常量的内容赋值进行替换，而不是在运行时进行分析。如下PHP代码：</p>
+	<?php
+		echo __LINE__;
+		function demo() {
+			echo __FUNCTION__;
+		}
+		demo();
+<p>PHP已经在词法解析时将这些常量换成了对应的值，以上的代码可以看成如下的PHP代码：</p>
+	
 
 
