@@ -2843,6 +2843,74 @@ Web服务器程序：
 		}
 		demo();
 <p>PHP已经在词法解析时将这些常量换成了对应的值，以上的代码可以看成如下的PHP代码：</p>
-	
+	<?php
+		echo 2;
+		function demo() {
+			echo "demo";
+		}
+		demo();
+<p>
+	如果我们使用VLD扩展查看以上的两段代码生成的中间代码，你会发现其结果是一样的。
+</p>
+<p>
+	前面我们有说PHP是在词法分析时做的赋值替换操作，以__FUNCTION__为例，在Zend/zend_language_scanner.l文件中，__FUNCTION__是一个需要分析的元标记(token)：
+</p>
+	<ST_IN_SCRIPTING>"__FUNCTION__"{
+		char *func_name = NULL;
+		
+		if(CG(active_op_array)){
+			func_name = CG(active_op_array)->function_name;
+		}
 
+		if(!func_name){
+			func_name = "";
+		}
+		zendlval->value.str.len = strlen(func_name);
+		zendlval->value.str.val = estrndup(func_name, zendlval->value.str.len);
+		zendlval->type = IS_STRING;
+		return T_FUNC_C;
+	}
+<p>
+	就是这里，当当前中间代码处于一个函数中时，则将当前函数名赋值给zendlval(也就是token T_FUNC_C的值内容)，如果没有，则将空字符串赋值给zendlval（因此在顶级作用域名中直接打印__FUNCTION__会输出空格）。这个值在语法解析时会直接赋值给返回值。这样我们就在生成的中间代码中看到了这些常量的位置都已经赋值好了。
+</p>
+<p>
+	和__FUNCTION__类似，在其附近位置，上面表格中的其他常量也进行了类似的操作。
+</p>
+	前面有个比较特殊的地方，当func_name不存在时，__FUNCTION__被替换成空字符串，你可能会想，怎么会有变量名不存在的方法呢，这里并不是匿名方法，匿名方法的function_name并不是空的，而是："{closure}",有兴趣的读者可以去代码找找在哪里给定义了。
+	这里涉及PHP字节码的编译，在PHP中，一个函数或者一个方法会变编译成一个opcode array opcode array的function name 字段标示的就是这个函数或方法的名称，同时一段普通的代码也会被当成一个完整实体被编译成一段opcode array，只不过没有函数名称。
+	整实体被编译成一段opcode array，只不过没有函数名称。
+	在PHP5.4中增加了对于trait类的常量定义：__TRAIT__.
+<p>
+	这些常量其实相当于一个常量模板，或者说是一个占位符，在词法解析时这些模板或占位符就被替换成实际的值。
+</p>
+###第三节 预定义变量
+<p>
+	在PHP脚本执行的时候，用户全局变量（在用户空间显式定义的变量）会保存在一个HashTable数据类型的符号表（symbol_table）中，而我们用得非常多的在全局范围内有效的变量却与这些用户全局变量不同。例如：$_GET,$_POST,$_SERVER,$_FILES等变量，我们并没有在程序中定义这些变量，并且这些变量也同样保存在符号表中，从这些表象我们不难得出结论：PHP是在脚本运行之前就将这些特殊的变量加入到了符号表。
+</p>
+####预定义变量$GLOBALS的初始化
+***
+<p>
+	我们以cgi模式为例说明$GLOBALS的初始化。从cgi_main.c文件main函数开始。整个调用顺序如下所示：
+</p>
+<p>
+	[main()->php_request_startup()->zend_activate()->init_executor()]
+</p>
+	...// 省略
+	zend_hash_init(&EG(symbol_table), 50, NULL, ZVAL_PTR_DTOR, 0);
+	{
+		zval *globals;
 
+		ALLOC_ZVAL(globals);
+		Z_SET_REFCOUNT_P(globals, 1);
+		Z_SET_ISREF_P(globals);
+	    Z_TYPE_P(globals) = IS_ARRAY;
+	    Z_ARRVAL_P(globals) = &EG(symbol_table);
+	    zend_hash_update(&EG(symbol_table), "GLOBALS", sizeof("GLOBALS"),
+	        &globals, sizeof(zval *), NULL);      //  添加全局变量$GLOBALS
+	}
+	...// 省略
+<p>
+	php_request_startup函数在PHP的生命周期中属于请求初始化阶段，即每个请求都会执行这个函数。因此，对于每个用户请求，其用到的这些预定义的全局变量都会不同。$GLOVALS的关键点在于zend_hasn_update函数的调用，它将变量名为GLOBALS的变量注册到EG（symbol_table）中，EG（symbol_table）是一个HahsTable的结构，用来存放顶层作用域的变量。通过这个操作，GLOBAL变量与其它顶层的变量一样都会注册到了变量表，也可以和其它变量一样直接访问了。这在下面将要提到的$_GET等变量初始化时也会用到。
+</p>
+####$_GET、$_POST等变量的初始化
+***
