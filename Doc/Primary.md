@@ -186,6 +186,146 @@
 <p>
 	4、文件和目录复制：cp
 </p>
+####3.2.2 文件隐藏属性
+<p>
+	查看文件隐藏属性：lsattr
+</p>
+<p>
+	增加文件属性：chattr	+a filename
+</p>
+####3.2.3 改变文件权限：chmod
+<p>
+	使用字母u、g、o来分别代表拥有者、拥有组、其他人。而对应的具体权限则使用rwx的组合来定义，增加权限使用+号，删除权限使用-号，详细权限使用=号。r 读取、 w 写、 x 执行权限。
+</p>
+####3.2.4 改变文件的拥有者： chown
+<p>
+	chown user file		#修改文件拥有者
+</p>
+<p>
+	chown :group file	#修改文件拥有群组
+</p>
+<p>
+	chown user:group file 	#配合使用
+</p>
+####3.2.5 改变文件的拥有组：chgrp
+<p>
+	chgrp group file 
+</p>
+###3.3查找文件
+####3.3.1一般查找：find
+<p>
+	find PATH -name FILENAME
+	<p>
+		-name filename 			查找文件名为filename的文件
+	</p>
+	<p>
+		-perm 					根据文件权限查找
+	</p>
+	<p>
+		-user username			根据用户名查找
+	</p>
+	<p>
+		-mtine	-n/+n			查找n天内/n天前更改过的文件
+	</p>
+	<p>
+		-atime  -n/+n			查找n天内/n天前访问过得文件
+	</p>
+	<p>
+		-ctime  -n/+n			查找n天内/n天前创建过得文件
+	</p>
+	<p>
+		-newer filename			查找更改时间比 filename 新的文件
+	</p>
+	<p>
+		-type b/d/c/p/l/f/s		查找块/目录/字符/管道/链接/普通/套接字文件
+	</p>
+	<p>
+		-size					根据文件大小查找
+	</p>
+	<p>
+		-depth n				最大的查找目录深度
+	</p>
+</p>
+####3.3.2	数据库查找：locate
+<p>
+	locate命令依赖于一个数据库文件，Linux默认每天会检索一下系统中的所有文件，然后将检索到的文件记录到数据库中。在运行locate命令的时候可以直接到数据库中查找记录并打印到屏幕上，所以使用locate命令要比find命令反馈更为迅速。在执行这个命令之前一般需要执行updatedb命令，以及时更新数据库记录。
+</p>
+####3.3.3	查找执行文件：which/whereis
+<p>
+	which 用于从系统的PATH变量所定义的目录中查找可执行文件的绝对路径。
+</p>
+<p>
+	whereis 也能查到其路径，但是和which不同的是，它不但能找出其二进制文件还能找到相关的man文件
+</p>
+###3.4 文件压缩和打包
+####3.4.1 gzip/gunzip
+<p>
+	gzip/gunzip是用来压缩和解压缩单个文件的工具，使用比较简单。gzip压缩文件，gunzip解压文件
+</p>
+####3.4.2 tar
+<p>
+	tar -zcvf boot.tgz /boot		#这里-z的含义是使用gzip压缩， -c是创建压缩文件， -v 是显示当前被压缩的文件， -f 是使用文件名，也就是这里的boot.tgz文件。
+</p>
+<p>
+	tar -zxvf boot.tgz -C /tmp		#这里-z是解压的意思。-C参数，指定压缩到的位置。
+</p>
+####3.4.3 bzip2
+<p>
+	使用bzip2压缩文件时，默认会产生以.bz2扩展名结尾的文件，这里使用-z参数进行压缩，使用-d参数进行解压缩。
+</p>
+####3.4.4 cpio
+<p>
+	该命令一般不是单独使用的，需要和find命运一同使用。当由find按照条件找出需要备份的文件列表后，可以通过管道的方式传递给cpio进行备份，生成/tmp/conf.cpio文件，然后再将生成的/tmp/conf.cpio文件中包含的文件列表完全还原回去。
+	<p>
+		备份： find /etc -name *.conf | cpio -cov > /tmp/conf.cpio
+	</p>
+	<p>
+		还原： cpio --absolute-filename -icvu < /tmp/conf.cpio
+	</p>
+</p>
+##第四章	Linux文件系统
+###文件系统
+<p>
+	Linux支持多种不同的文件系统，包括ext2,ext3,ext4,zfs,iso8660,vfat,msdos,smbfs,nfs等。虽然文件系统多种多样，但是大部分Linux系统都具有类似的通用结构，包括超级块(superblock)、i节点(inode)、数据块(data block)、目录块(directory block)等。
+</p>
+###4.2 磁盘分区、创建文件系统、挂载
+<p>
+	磁盘使用前需要对其进行分割，这种动作被形象地称为分区。磁盘的分区分为两类，即主分区和扩展分区。受限制于磁盘的分区表大小(MBR大小为512字节，其中分区表占64字节)，由于每个分区信息使用16字节，所以一块磁盘最多只能创建4个主分区，为了能支持更多分区，可以使用扩展分区(扩展分区中可以划分更多逻辑分区)，但是即便这样，分区还是要受主分区+扩展分区最多不能超过4个的限制。在完成磁盘分区后，需要进行创建文件系统的操作，最后将该分区挂载到系统中的某个挂载点才可以使用。
+</p>
+####4.2.1 创建文件系统：fdisk
+<p>
+	使用fdisk -l查看一下发现，有一个/dev/sdb设备。下面开始对/dev/sdb进行分区操作，首先输入fdisk  /dev/sdb, 然后输入字母n，这个字母代表new，也就是新建分区；然后系统会提示是创建扩展分区(extended)还是主分区（primary）,这里选择p；在primary number 中输入数字1,代表这是第一个分区；下面要输入第一柱面开始的位置，该处输入1；然后输入最后一个柱面的位置，这里输入130表将所有的空间划给这个分区；最后输入字母w,表示将刚刚创建的分区写入分区表。
+</p>
+<p>
+	然后在刚刚创建的分区中格式化文件系统，这里使用的是ext3文件系统。可以使用命令 mkfs -t ext3 /dev/sdb1,或简单地将此命令写成 mkfs.ext3 /dev/sdb1，这两个命令是一样的。
+</p>
+####4.2.2 磁盘挂载：mount
+<p>
+	创建了文件系统的分区后，在Linux系统下还需要经过挂载才能使用，挂载设备的命令是mount，使用方法如下(其中DEVICE是指具体的设备，MOUNT_POINT是指挂载点，挂载点只能是目录，所以首先在/root目录下创建一个newDisk目录)。
+</p>
+	mount DEVICE MOUNT_POINT
+	
+	mkdir newDisk
+	#挂载设备
+	mount /dev/sdb1 newDisk
+	#没有参数的mount会显示所有挂载
+	mount
+	#……执行挂载指令
+	#查看可用空间
+	df -h | grep sdb1
+####4.2.3 设置启动自动挂载： /etc/fstab
+<p>
+	echo "/dev/sdb1 /root/newDisk ext3 defaults 0 0" >>/etd/fstab
+</p>
+<p>
+	这行命令的意思显而易见：/dev/sdb1（第一部分）挂载到 /root/newDsik（第二部分），文件系统时ext3（第三部分），使用系统默认的挂载参数（第四部分defaults）,第五部分是决定dump命令在进行备份时是否要将这个分区存档，默认设0，第六部分是设定系统启动时是否对该设备进行fsck,这个值可能是3种：1保留给根分区，其他分区使用2（检查完根分区后检查）或者0（不检查）。这样以后系统重启时，设备就会自动挂载了。
+</p>
+####4.2.4 磁盘检验：fsck、badblocks
+<p>
+	
+</p>
+
+
 
 	
 	
