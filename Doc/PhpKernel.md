@@ -2914,3 +2914,226 @@ Web服务器程序：
 </p>
 ####$_GET、$_POST等变量的初始化
 ***
+<p>
+	$_GET、$_COOKIE、$_SERVER、$_ENV、$_FILES、$_REQUEST这六个变量都是通过如下的调用序列进行初始化。[main()->php_request_startup()->php_hash_environment()]在请求初始化时，通过调用php_hash_environment函数初始化以上的六个预定义的变量，如下所示为php_hash_envirnment函数的代码。在代码之后我们以$_POST为例说明整个初始化的过程。
+</p>
+	/* {{{ php_hash_enviroment
+	*/
+	int php_hash_environment(TSRMLS_D)
+	{
+		char *p;
+		unsigned char _gpc_flags[5] = {0,0,0,0,0};
+		zend_bool jit_initialization = (PG(auto_globals_jit) && !PG(register_globals) && !PG(register_long_arrays));
+		struct auto_global_record {
+                char *name;
+                uint name_len;
+                char *long_name;
+                uint long_name_len;
+                zend_bool jit_initialization;
+        } auto_global_records[] = {
+                { "_POST", sizeof("_POST"), "HTTP_POST_VARS", sizeof("HTTP_POST_VARS"), 0 },
+                { "_GET", sizeof("_GET"), "HTTP_GET_VARS", sizeof("HTTP_GET_VARS"), 0 },
+                { "_COOKIE", sizeof("_COOKIE"), "HTTP_COOKIE_VARS", sizeof("HTTP_COOKIE_VARS"), 0 },
+                { "_SERVER", sizeof("_SERVER"), "HTTP_SERVER_VARS", sizeof("HTTP_SERVER_VARS"), 1 },
+                { "_ENV", sizeof("_ENV"), "HTTP_ENV_VARS", sizeof("HTTP_ENV_VARS"), 1 },
+                { "_FILES", sizeof("_FILES"), "HTTP_POST_FILES", sizeof("HTTP_POST_FILES"), 0 },
+        };
+        size_t num_track_vars = sizeof(auto_global_records)/sizeof(struct auto_global_record);
+        size_t i;
+ 
+        /* jit_initialization = 0; */
+        for (i=0; i<num_track_vars; i++) {
+                PG(http_globals)[i] = NULL;
+        }
+ 
+        for (p=PG(variables_order); p && *p; p++) {
+                switch(*p) {
+                        case 'p':
+                        case 'P':
+                                if (!_gpc_flags[0] && !SG(headers_sent) && SG(request_info).request_method && !strcasecmp(SG(request_info).request_method, "POST")) {
+                                        sapi_module.treat_data(PARSE_POST, NULL, NULL TSRMLS_CC);   /* POST Data */
+                                        _gpc_flags[0] = 1;
+                                        if (PG(register_globals)) {
+                                                php_autoglobal_merge(&EG(symbol_table), Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_POST]) TSRMLS_CC);
+                                        }
+                                }
+                                break;
+                        case 'c':
+                        case 'C':
+                                if (!_gpc_flags[1]) {
+                                        sapi_module.treat_data(PARSE_COOKIE, NULL, NULL TSRMLS_CC); /* Cookie Data */
+                                        _gpc_flags[1] = 1;
+                                        if (PG(register_globals)) {
+                                                php_autoglobal_merge(&EG(symbol_table), Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_COOKIE]) TSRMLS_CC);
+                                        }
+                                }
+                                break;
+                        case 'g':
+                        case 'G':
+                                if (!_gpc_flags[2]) {
+                                        sapi_module.treat_data(PARSE_GET, NULL, NULL TSRMLS_CC);    /* GET Data */
+                                        _gpc_flags[2] = 1;
+                                        if (PG(register_globals)) {
+                                                php_autoglobal_merge(&EG(symbol_table), Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]) TSRMLS_CC);
+                                        }
+                                }
+                                break;
+                        case 'e':
+                        case 'E':
+                                if (!jit_initialization && !_gpc_flags[3]) {
+                                        zend_auto_global_disable_jit("_ENV", sizeof("_ENV")-1 TSRMLS_CC);
+                                        php_auto_globals_create_env("_ENV", sizeof("_ENV")-1 TSRMLS_CC);
+                                        _gpc_flags[3] = 1;
+                                        if (PG(register_globals)) {
+                                                php_autoglobal_merge(&EG(symbol_table), Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_ENV]) TSRMLS_CC);
+                                        }
+                                }
+                                break;
+                        case 's':
+                        case 'S':
+                                if (!jit_initialization && !_gpc_flags[4]) {
+                                        zend_auto_global_disable_jit("_SERVER", sizeof("_SERVER")-1 TSRMLS_CC);
+                                        php_register_server_variables(TSRMLS_C);
+                                        _gpc_flags[4] = 1;
+                                        if (PG(register_globals)) {
+                                                php_autoglobal_merge(&EG(symbol_table), Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_SERVER]) TSRMLS_CC);
+                                        }
+                                }
+                                break;
+                }
+        }
+ 
+        /* argv/argc support */
+        if (PG(register_argc_argv)) {
+                php_build_argv(SG(request_info).query_string, PG(http_globals)[TRACK_VARS_SERVER] TSRMLS_CC);
+        }
+ 
+        for (i=0; i<num_track_vars; i++) {
+                if (jit_initialization && auto_global_records[i].jit_initialization) {
+                        continue;
+                }
+                if (!PG(http_globals)[i]) {
+                        ALLOC_ZVAL(PG(http_globals)[i]);
+                        array_init(PG(http_globals)[i]);
+                        INIT_PZVAL(PG(http_globals)[i]);
+                }
+ 
+                Z_ADDREF_P(PG(http_globals)[i]);
+                zend_hash_update(&EG(symbol_table), auto_global_records[i].name, auto_global_records[i].name_len, &PG(http_globals)[i], sizeof(zval *), NULL);
+                if (PG(register_long_arrays)) {
+                        zend_hash_update(&EG(symbol_table), auto_global_records[i].long_name, auto_global_records[i].long_name_len, &PG(http_globals)[i], sizeof(zval *), NULL);
+                        Z_ADDREF_P(PG(http_globals)[i]);
+                }
+        }
+ 
+        /* Create _REQUEST */
+        if (!jit_initialization) {
+                zend_auto_global_disable_jit("_REQUEST", sizeof("_REQUEST")-1 TSRMLS_CC);
+                php_auto_globals_create_request("_REQUEST", sizeof("_REQUEST")-1 TSRMLS_CC);
+        }
+ 
+        return SUCCESS;
+	}
+<p>
+	以$_POST为例，首先以auto_glabal_record数组形式定义好将要初始化的变量的相关信息。在变量初始化完成后，按照PG(variables_order)指定顺序（在php.ini中指定），通过调用sapi_module.treat_data处理数据。
+</p>
+	从PHP实现的架构设计看，treat_data函数在SAPI目录下不同的服务器应该有不同的实现，只是现在大部分都是使用的默认实现。
+<p>
+	在treat_data后，如果打开了PG（register_globais），则会调用php_autoglobal_merge将相关变量的值写到符号表。
+</p>
+<p>
+	以上的所有数据处理是一个赋值前的初始化行为，通过遍历之前定义的结构图，调用zend_hash_update，将相关变量的值赋值&EG（symbol_table）。另外对于$_REQUEST有独有的处理方法。
+</p>
+<p>
+	当客户端发起文件提交请求时，Apache会将所接收到的内容转交给mod_php5接收到请求后，首先会调用sapi_activate，在此函数中程序会根据请求的方法处理数据，如示例中POST方法，其调用过程如下：
+</p>
+	if(!strcmp(SG(request_info).request_method,"POST")) && (SG(request_info).content_type){
+		 /* HTTP POST -> may contain form data to be read into variables
+    	depending on content type given
+    	*/
+		sapi_read_post_data(TSRMLS_C);
+	}
+<p>
+	sapi_read_post_data在main/SAPI.c中实现，它会根据POST内容的Content-type类型来选择处理POST内容的方法。
+</p>
+	if (zend_hash_find(&SG(know_post_content_types),content_type, content_type_length+1,(void **)&post_ebtry) == SUCCESS) {
+		/* found one, register it for use */
+		SG(request_info).post_entry = post_entry;
+		post_reader_func = post_entry->post_reader;
+	}
+<p>
+	以上代码的关键在于SG(know_post_contetn_types)变量，此变量是在SAPI启动时初始化全局变量时被一起初始化的，其基本过程如下：
+</p>
+	sapi_startup
+	sapi_globals_ctor(&sapi_globals);
+	php_setup_sapi_content_types(TSRMLS_C);
+	sapi_register_post_entries(php_post_entries TSRMLS_CC);
+<p>
+	这里的php_post_entries定义在main/php_content_types.c文件，如下：
+</p>
+	/* {{{ php_post_entries[]
+	*/
+	static sapi_post_entry php_post_entries[] = {
+	{ DEFAULT_POST_CONTENT_TYPE, sizeof(DEFAULT_POST_CONTENT_TYPE)-1, sapi_read_standard_form_data, php_std_post_handler },
+	{ MULTIPART_CONTENT_TYPE, sizeof(MULTIPART_CONTENT_TYPE)-1, NULL, rfc1867_post_handler },
+	{ NULL, 0, NULL, NULL }
+	};
+	/* }}} */
+	 
+	#define MULTIPART_CONTENT_TYPE "multipart/form-data"
+	 
+	#define DEFAULT_POST_CONTENT_TYPE "application/x-www-form-urlencoded"
+<p>
+	如上所示的MULTIPART_CONTENT_TYPE(multipart/form-data)所对应得rfc 1867——post_handler方法就是处理$_FILES的核心函数，其定义在main/rfc1867.c文件：SAPI_API 
+</p>
+<p>
+	SAPI_POST_HANDLER_FUNC(rfc1867_post_handler) 后面获取Content-Type的过程就比较简单了：
+	<ul>
+		<li>通过multipart_buffer_eof控制循环，遍历所有的multipart部分</li>
+		<li>通过multipart_buffer_headers获取multipart部分的头部信息</li>
+		<li>通过php_mime_get_hdr_value(header, “Content-Type”)获取类型</li>
+		<li>通过register_http_post_files_variable(lbuf, cd, http_post_files, 0 TSRMLS_CC); 将数据写到$_FILES变量。</li>
+	</ul>
+</p>
+	SAPI_API SAPI_POST_HANDLER_FUNC(rfc1867_post_handler)
+	{
+	 
+	//若干省略
+	    while (!multipart_buffer_eof(mbuff TSRMLS_CC)){
+	        if (!multipart_buffer_headers(mbuff, &header TSRMLS_CC)) {
+	        goto fileupload_done;
+	    }
+	//若干省略
+	    /* Possible Content-Type: */
+	    if (cancel_upload || !(cd = php_mime_get_hdr_value(header, "Content-Type"))) {
+	        cd = "";
+	    } else { 
+	    /* fix for Opera 6.01 */
+	        s = strchr(cd, ';');
+	        if (s != NULL) {
+	            *s = '\0';
+	        }
+	    }
+	//若干省略
+	    /* Add $foo[type] */
+	    if (is_arr_upload) {
+	            snprintf(lbuf, llen, "%s[type][%s]", abuf, array_index);
+	    } else {
+	        snprintf(lbuf, llen, "%s[type]", param);
+	    }
+	    register_http_post_files_variable(lbuf, cd, http_post_files, 0 TSRMLS_CC);
+	    //若干省略
+	    }
+	}
+<p>其它的$_FILES中的size、name等字段，其实现过程与type类似。</p>
+####预定义变量的获取
+***
+<p>
+	在某个局部函数中使用类似于$GLOBALS变量这样的预定义变量， 如果在此函数中有改变的它们的值的话，这些变量在其它局部函数调用时会发现也会同步变化。 为什么呢？是否是这些变量存放在一个集中存储的地方？ 从PHP中间代码的执行来看，这些变量是存储在一个集中的地方：EG(symbol_table)。
+</p>
+<p>
+	在模块初始化时，$GLOBALS在zend_startup函数中通过调用zend_register_auto_global将GLOBALS注册为预定义变量。 $_GET、$_POST等在php_startup_auto_globals函数中通过zend_register_auto_global将_GET、_POST等注册为预定义变量。
+</p>
+<p>
+	在通过$获取变量时，PHP内核都会通过这些变量名区分是否为全局变量（ZEND_FETCH_GLOBAL）， 其调用的判断函数为zend_is_auto_global，这个过程是在生成中间代码过程中实现的。 如果是ZEND_FETCH_GLOBAL或ZEND_FETCH_GLOBAL_LOCK(global语句后的效果)， 则在获取获取变量表时(zend_get_target_symbol_table)， 直接返回EG(symbol_table)。则这些变量的所有操作都会在全局变量表进行。
+</p>
