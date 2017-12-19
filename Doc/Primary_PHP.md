@@ -222,7 +222,603 @@
 	<p>
 		int openlog(string ident, int option, int facility)
 	</p>
+	<p>
+	ident,增加到每一项开始处的消息标识符。通常将这个值设置为程序名。
+	</p>
+	<p>
+	option,确定生成消息时使用哪些日志选项。
+	</p>
+	<p>
+	facility,有助于确定记录消息日志的程序属于哪一类。
+	</p>
 </p>
-
-
+<p>
+	3、关闭日志连接
+	<p>
+	syslog()函数负责向syslog发生一条定制消息。其形式为:
+	</p>	
+	<p>
+		int syslog(int priority, string message)
+	</p>
+</p>
+###异常处理
+<p>
+	异常处理4个步骤：
+	<ul>
+		<li>(1)应该程序尝试做一些操作</li>
+		<li>(2)如果尝试失败，则异常处理特性抛出一个异常</li>
+		<li>(3)指定的处理器捕获该异常，完成必要的任务</li>
+		<li>(4)异常处理特性清除在尝试期间占用的资源</li>
+	</ul>
+</p>
+####PHP的异常处理实现
+<p>
+	1.扩展基本异常类
+	<p>
+	默认构造函数：默认的异常构造函数不带参数。throw new Exception();
+	</p>
+	<p>
+	重载构造函数：重载构造函数可以接受3个可选参数，由此提供默认构造函数所没有的其他功能。
+		<p>
+		message。作为一个对用户友好的解释，可以通过getMessage()方法传递给用户。	
+		</p>
+		<p>
+		error code。 用于保存错误标识符，可以映射到某个标识符一消息。错误代码通常用于国际化和本地化。这个错误代码可以通过getCode()方法得到。
+		</p>
+		<p>
+		previous。这个可选参数可以用来传入导致抛出当前异常的异常，这个特性称为异常串链，也称为异常嵌套。利用这个有用的选项，可以很容易地创建轨迹，利用这些轨迹能够诊断代码中出现的复杂问题。
+		</p>
+	</p>
+	<p>
+	方法：
+	<li>getCode().返回传递构造函数的错误代码。</li>
+	<li>getFile().返回抛出异常的文件名</li>
+	<li>getLine().返回抛出异常的行号</li>
+	<li>getMessage().返回传递给构造函数的消息</li>
+	<li>getPrevious.这个方法会返回前一个异常</li>
+	<li>getTrace().返回一个数组，其中包括出现错误的上下文的有关信息。</li>
+	<li>getTraceAsString().返回与getTrace()完全相同的信息，只是返回的信息是一个字符串而不是数组</li>
+	</p>
+</p>
+##第九章 字符串和正则表达式
+<p>
+	1、中括号：[]用来表述要匹配的一定范围的字符或字符列表。
+</p>
+<p>
+	2、量词：表达字符出现的频率或位置寻找字符。
+</p>
+<p>
+	3、预定义字符范围(字符类)
+</p>
+###Perl风格
+<p>
+	1、修饰符：
+	<li>I 完成不区分大小写的搜索</li>
+	<li>G 查找所有出现（完成全局搜索）</li>
+	<li>M 将一个字符串视为多行（m就表示multiple）。默认情况下，^和$字符匹配字符串的最开始和最末尾。使用m修饰符使^和$匹配字符串中每行的开始</li>
+	<li>S 将一个字符串视为一行，忽略其中的所有换行符；它与m修饰符正好作用相反。</li>
+	<li>X 忽略正则表达式中的空白和注释</li>
+	<li>U 第一次匹配后停止。</li>
+</p>	
+<p>
+	2、元字符
+	<li>\A 只匹配字符串开头</li>
+	<li>\b 匹配单词边界</li>
+	<li>\B 匹配除单词边界之外的任意字符</li>
+	<li>\d 匹配数字字符。它与[0-9]相同</li>
+	<li>\D 匹配非数字字符</li>
+	<li>\s 匹配空白字符</li>
+	<li>\S 匹配非空白字符</li>
+	<li>[] 包围一个字符类</li>
+	<li>() 包围一个字符分组或定义一个反引用</li>
+	<li>$ 匹配行尾</li>
+	<li>^ 匹配行首</li>
+	<li>. 匹配除换行之外的任意字符</li>
+	<li>\ 引出下一个元字符</li>
+	<li>\w 匹配任何只包含下划线和字母数字字符的字符串。它与[a-zA-Z0-9_]相同</li>
+	<li>\W 匹配字符串，忽略下划线和字母数字字符</li>
+</p>
+<p>
+	3、PHP的正则表达式函数(Perl兼容)
+	<p>
+	搜索数组：preg_grep(string patten, array input[,int flags])
+	</p>
+	<p>
+	搜索模式：函数根据搜索模式搜索字符串，如果存在返回TRUE，否则返回FALSE。preg_match(string patten, string string)
+	</p>
+	<p>
+	匹配所有出现的模式：preg_match_all(string patten, string string, array matches)
+	</p>
+	<p>
+	界定特殊的正则表达式字符：preg_quote(string str[, string delimiter])在每个对于正则表达式而言有特殊含义的字符前插入一个反斜线。
+	</p>
+	<p>
+	替换匹配模式的所有字符串：preg_replace(minxed pattern, mixed replacement, mixed str[, int limit[, int count]])函数会用replacement的内容替换与pattern匹配的所有字符串，并返回修改后的结果。
+	</p>	
+	<p>
+	以不区分大小写的方式将字符串划分为不同的元素：preg_split(string patten, string string[, int limit[, int flags]])函数与split()函数相同，只是pattern也可以按正则表达式定义。
+	</p>
+</p>
+###其他字符串函数
+####确定字符串长度：strlen(string str)
+####比较两个字符串
+<p>
+	1、以区分大小写的方式比较两个字符串
+	<p>
+		int strcmp(string str1, string str2)
+	</p>	
+	<p>
+		相等返回0，str1大于str2返回1，str1小于str2返回-1
+	</p>
+	2、以不区分大小写的方式比较两个字符串
+	<p>
+		int strcasecnp(strng str1, string str2)
+	</p>
+	3、求两个字符串相同的部分
+	<p>
+		int strspn(string str1, string str2[, int start[, int length]])
+	</p>
+	4、求两个字符串的不同部分
+	<p>
+		int strcspn(string str1, string str2)
+	</p>
+</p>
+####处理字符串大小写
+<p>
+	1.将字符串全部转换成小写：strolower(string str)
+</p>
+<p>
+	2.将字符串全部转换成大写：strtoupper(string str)
+</p>
+<p>
+	3.将字符串的第一个字符大写：ucfirst(string str)
+</p>
+<p>
+	4.将字符串中每个单词的首字母变为大写：ucwords(string str)
+</p>
+####字符串与HTML相互交换
+<p>
+	1.将换行符转换为HTML终止标签：nl2br(string str)
+</p>
+<p>
+	2.将特殊字符转换为HTML等价形式：htmlentities(string str)
+</p>
+<p>
+	3.将特殊的HTML字符用于其他目的：htmlspecialchars(string str)
+</p>
+<p>
+	4.将文本转换为HTML等价形式：get_html_translation_table（）
+</p>
+<p>
+	5.创建一个自定义的转换清单：strtr(string str, array replacements)
+</p>
+<p>
+	6.将HTML转换为纯文本：strip_tags(string str)
+</p>
+####正则表达式函数的替代函数
+<p>
+	1.根据预定义的字节对字符串进行词法分析：strtok(string str, string tokens)
+</p>
+<p>
+	2.根据预定义的定界符分解字符串：explode(string separator, string str)
+</p>
+<p>
+	3.将数组转交成字符串：implode(string delimiter, array pieces)
+</p>
+<p>
+	4.解析复杂的字符串(区分大小写，查找第一次出现的位置)：strpos(string str, string substr)
+</p>
+<p>
+	5.找到字符串最后一次出现的位置：strrpos(string str, char substr)
+</p>
+<p>
+	6.用另一个字符串替换字符串的所有实例：str_replace(string occurrence, mixed replacement, mixed str)
+</p>
+<p>
+	7.获取字符串的一部分：strstr(string str, string occurrence)
+</p>
+<p>
+	8.根据预定义的偏移返回字符串的一部分：substr(string str, int start[, int length])
+</p>
+<p>
+	9.确定字符串出现的频率：substr_count(string str, string substring)
+</p>
+<p>
+	10.用另一个字符串替换一个字符串的一部分：substr_replace(string str, string replacement, int start [,int length])
+</p>
+####填充和剔除字符串
+<p>
+	1.从字符串开始处裁剪字符：ltrim(string str [,string charlist])
+</p>
+<p>
+	2.从字符串两端裁剪字符：trim(string str[, string charlist])
+</p>
+<p>
+	3.从字符串末尾裁剪字符：rtrim(string str[, string charlist])
+</p>
+<p>
+	4.填充字符串：str_pad(string str, int length[, string pad_string[, int pad_type]])
+</p>
+####统计字符和单词个数
+<p>
+	1.统计字符串个数：count_chars(string str[, int mode])
+</p>
+<p>
+	2.统计字符串单词总数：str_word_count(string str[, int format])
+</p>
+####使用PEAR：Validate_US
+<p>
+	安装Validate_US
+</p>
+	pear install Validate_US-beta
+<p>
+	使用Validate_US。实例化类Validate_US()，调用适当的验证方法。
+</p>
+##第十章 处理文件和操作系统
+###了解文件和目录
+####解析目录路径
+<p>
+	1.获取路径的文件名：basename(string path[, string suffix])
+</p>
+<p>
+	2.获取路径的目录:dirname(string path)
+</p>
+<p>
+	3.了解更多关于路径的信息：pathinfo(string path)
+</p>
+<p>
+	4.确定绝对路径：realpath(string path)
+</p>
+####计算文件、目录和磁盘大小
+<p>
+	1.确定文件的大小：filesize(string filename)
+</p>
+<p>
+	2.计算磁盘的可以空间：disk_free_space(string directory)
+</p>
+<p>
+	3.计算磁盘的总容量：disk_total_space(string directory)
+</p>
+<p>
+	4.获取目录大小：
+</p>
+	function directorySize($directory){
+	    $directorySize = 0;
 	
+	    //打开目录读取其内容
+	    if ($dh = @opendir($directory)){
+	        //迭代处理每个目录项
+	        while (($filename = readdir($dh))) {
+	            //过滤掉一些目录项
+	            if ($filename != "." && $filename != "..") {
+	                //文件，确定大小并添加到总大小
+	                if (is_file($directory.'/'.$filename)) 
+	                    $directorySize += filesize($directory.'/'.$filename)
+	                //新目录，开始递归
+	                if (is_dir($directory.'/'.$filename))
+	                    $directorySize += directorySize($directory.'/'.$filename);
+	            }
+	        }
+	    }
+	    @closedir($dh);
+	    return $directorySize;
+	}
+####确定访问和修改时间
+<p>
+	1.确定文件的最后访问时间：fileatime(string filename)
+</p>
+<p>
+	2.确定文件的最后改变时间：filectime(string filename)
+</p>
+<p>
+	3.确定文件的最后修改时间：filemtine(string filename)
+</p>
+###文件处理
+####打开和关闭文件
+<p>
+	1.打开文件：fopen(string resource, string mode[, int use_include_path[, resource context]])
+</p>
+<p>
+	2.关闭文件：fclose(resource filehandle)
+</p>
+####读取文件
+<p>
+	1.将文件读入数组：file(string filename[int use_include_path[, resource context]])
+</p>
+<p>
+	2.将文件内容读入字符串变量：file_get_contents(string filename[, int use_include_path[, resource context[,int offset[, int maxlen]]]])
+</p>
+<p>
+	3.将CSV文件读入数组：fgetcsv(resource handle[, int length[, string delimiter[, string enclosure]]])
+</p>
+<p>
+	4.读取指定数目的字符：fgets(resource handle[,int length])
+</p>
+<p>
+	5.从输入中剔除标签：fgetss(resource handle, int length[, string allowable_tags])
+</p>
+<p>
+	6.以一次读取一个字符的方式读取文件：fgetc(resource handle)
+</p>
+<p>
+	7.忽略换行符：fread(resource handle, int length)
+</p>
+<p>
+	8.读取整个文件：readfile(string filename[, int use_include_path])
+</p>
+<p>
+	9.根据预定义的格式读取文件：fscanf(resource handle, string format[, string varl])
+</p>
+####将字符串写入文件
+<p>
+	fwrite(resource handle, string string[, int length])
+</p>
+####移动文件指针
+<p>
+	1.将文件指针移到偏移量指定的位置：fseek(resource handle, int offset[, int whence])
+</p>
+<p>
+	2.获取文件指针移回至文件开始处：rewind(resource handle)
+</p>
+<p>
+	3.将文件指针移回至文件开始处：rewind(resource handle)
+</p>
+####读取目录内容
+<p>
+	1.打开目录句柄：fopen(string path[, resource context])
+</p>
+<p>
+	2.关闭目录句柄：closedir(resource directory_handle)
+</p>
+<p>
+	3.解析目录内容：readdir([resource dirextory_handle])
+</p>
+<p>
+	4.将目录读入数组：scandir(string directory[, int sorting_order[, resource context]])
+</p>
+####执行shell命令
+<p>
+	1.删除目录：rmdir(string dirname)
+</p>
+<p>
+	2.重命名文件：rename(string oldname, string newname)
+</p>
+<p>
+	3.触摸文件(设置文件最后修改时间)：touch(string filename[, int time])
+</p>
+####系统及程序执行
+<p>
+	1.界定输入：escapeshellarg(string arguments)
+</p>
+<p>
+	2.转义可能危险的输入：escapeshellcmd(string command)
+</p>
+####PHP的程序执行函数
+<p>
+	1.执行系统级命令：exec(string command [,array &output[, int &return_var]])
+</p>
+<p>
+	2.获取系统命令的结果：system(string command[, int return_var])
+</p>
+<p>
+	3.返回二进制输出：passthru(string command[, int &return_var])
+</p>
+<p>
+	4.可代替反引号的函数：shell_exec(string command)
+</p>
+##第十二章 日期和时间
+###PHP的日期和时间库
+<p>
+	1.验证日期：checkdate(int month, int day, int year)
+</p>
+<p>
+	2.格式化日期和时间：date(string format[, int timestamp])
+</p>
+<p>
+	3.了解当前时间的更多信息：gettimeofday([boolean return_float])
+</p>
+<p>
+	4.将时间戳转换为用户友好的值：getdate([int timestamp])
+</p>
+<p>
+	5.根据特定的日期和时间创建时间戳：mktime(int hour[, int minute[, int second[, int month[, int day[, int year]]]]])
+</p>
+####日期函数
+<p>
+	1.设置默认的本地化环境：setlocale(integer category, string locale)
+</p>
+<p>
+	2.本地化日期和时间：strftime(string format[, int timestamp])
+</p>
+##第十六章 网络
+###DNS、服务器和服务
+####DNS
+<p>
+	1.检查DNS记录是否存在：checkdnsrr(string host[, string type])
+</p>
+<p>
+	2.DNS资源记录：dns_get_record(string hostname[, int type[, array &authns, array &addtl]])
+</p>
+<p>
+	3.获取MX记录：getmxrr(string hostname, array &mxhosts[, array &weight])
+</p>
+####服务
+<p>
+	1.获取服务器的端口号：getservbyname(string service, string protocol)
+</p>
+<p>
+	2.获取端口号的服务名：getservbyport(int port, string protocol)
+</p>
+####建立套接字连接
+<p>
+	fsockopen(string target, int port[, int errno [, string errstring[, float timeout]]])
+</p>
+<p>
+	fsockopen()函数在端口port上建立与target所表示资源的连接，在可以选参数errno和errstring中返回错误信息。可选参数timeout设置时间限值，以秒为单位，表示函数在失败前多长时间内会继续尝试建立连接。
+</p>
+	<?php
+		//在端口80上与www.mall.com建立连接
+		$http = fsockopen("www.mall.com");
+		
+		//给服务器发送一个请求
+		$req = "GET / HTTP/1.1\r\n";
+		$req .= "Host: www.mall.com\r\n";
+		$req .= "Connection: Close\r\n\r\n";
+		
+		fputs($http, $req);
+		
+		//输出请求结果
+		while (!feof($http)) {
+		    echo fgets($http, 1024);
+		}
+		
+		//关闭连接
+		fclose($http);
+	?>
+<p>
+	使用fsockopen()创建端口扫描器
+</p>
+	//给脚本足够的时间来完成任务
+	ini_set("max_execution_time", 120);
+	
+	//定义扫描范围
+	$rangStart = 0;
+	$rangStop = 1024;
+	
+	//扫描哪个服务器？
+	$target = "localhost";
+	
+	//创建端口值得一个数组
+	$range = range($rangStart, $rangStop);
+	
+	echo "<p>Scan results for $target</p>";
+	
+	//执行扫描
+	foreach ($range as $port){
+	    $result = @fsockopen($target, $port, $errno, $errstr, 1);
+	    if ($result)  echo "<p>Socket open at port $port</p>";
+	}
+####常见网络任务
+<p>
+	1.连接服务器
+</p>
+	<?php 
+
+	    //ping 哪个服务器
+	    $server = "www.mall.com";
+	
+	    //ping服务器多少次
+	    $count = 3;
+	
+	    //执行任务
+	    echo "<pre>";
+	    system("/bin/ping -c $count $server");
+	    echo "</pre>";
+	
+	    //杀死任务
+	    system("killall -q ping");
+	
+	?>
+<p>
+	2.创建端口扫描器：
+</p>
+	<?php 
+
+	    $target = "www.mall.com";
+	    echo "<pre>";
+	    system("/usr/bin/nmap $target");
+	    echo "</pre>";
+	
+	    //杀死任务
+	    system("killall -q nmap");
+	
+	?>
+<p>
+	3.创建子网转换器：
+</p>
+	<form>
+	    <p>
+	        IP Address:<br/>
+	        <input type="text" name="ip[]" size="3" maxlength="3" value="">.
+	        <input type="text" name="ip[]" size="3" maxlength="3" value="">.
+	        <input type="text" name="ip[]" size="3" maxlength="3" value="">.
+	        <input type="text" name="ip[]" size="3" maxlength="3" value="">
+	    </p>
+	
+	    <p>
+	        Subnet Mask:<br/>
+	        <input type="text" name="sm[]" size="3" maxlength="3" value="">.
+	        <input type="text" name="sm[]" size="3" maxlength="3" value="">.
+	        <input type="text" name="sm[]" size="3" maxlength="3" value="">.
+	        <input type="text" name="sm[]" size="3" maxlength="3" value="">
+	    </p>
+	    <input type="submit" name="submit" value="Calculate">
+	</form>
+	
+	<?php 
+	    if (isset($_POST['submit'])) {
+	        //连接IP组成部分并转换为IPv4格式
+	        $ip = implode('.', $_POST['ip']);
+	        $ip = ip2long($ip);
+	
+	        //连接网络掩码组成部分并转换为IPv4格式
+	        $netmask = implode('.', $_POST['sm']);
+	        $netmask = ip2long($netmask);
+	
+	        //计算网络地址
+	        $na = ($ip & $netmask);
+	        //计算广播地址
+	        $ba = $na | (~$netmask);
+	
+	        //重转换地址为点格式并显示
+	        echo "Addressing Information :<br/>";
+	        echo "<ul>";
+	        echo "<li>IP Address:".long2ip($ip)."</li>";
+	        echo "<li>Subnet Mask:".long2ip($netmask)."</li>";
+	        echo "<li>Network Address:".long2ip($na)."</li>";
+	        echo "<li>Broadcast Address:".long2ip($ba)."</li>";
+	        echo "<li>Total Available Hosts:".($ba - $na - 1)."</li>";
+	        echo "<li>Host Ranga:".long2ip($na + 1)." - ".long2ip($ba - 1)."</li>";
+	        echo "</ul>";
+	    }
+	?>
+<p>
+	4.测试用户宽带：
+</p>
+	<?php 
+
+	    //检索要发送用户的数组
+	    $data = file_get_contents("textfile.txt");
+	
+	    //确定数据总大小，以千字节为单位
+	    $fsize = filesize("textfile.txt") / 1024;
+	
+	    //确定起始时间
+	    $start = time();
+	
+	    //发送数据给用户
+	    echo "<!-- $data -->";
+	
+	    //确定终止时间
+	    $stop = time();
+	
+	    //计算发送数据所耗时间
+	    $duration = $stop - $start;
+	    //用文件大小除以传输时间（以秒计）
+	    $speed = round($fsize / $duration, 2);
+	
+	    //显示计算得出的速度（Kbit/s）
+	    echo "Your network speed : $speed KB/sec.";
+	
+	?>
+
+
+
+
+
+
+
+
+
+
+

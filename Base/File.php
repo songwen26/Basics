@@ -55,6 +55,21 @@ ftell($handle);         //返回文件指针读/写的位置
  */
 flock($handle, $operation);
 
+//目录函数
 
+dirname($path);         //给出一个包含有指向一个文件全路径的字符串，本函数返回去掉文件名后的目录名
 
+is_dir($filename);      //判断给定的文件是否是一个目录
+
+mdir($pathname);        //尝试新建一个由pathname指定的目录
+
+rmdir($dirname);        //尝试删除dirname指定的目录。该目录必须是空的，而且要有相应权限。
+
+scandir($directory);    //列出指定路径中的文件和目录
+
+opendir($path);         //打开一个目录句柄。
+
+rewinddir($dir_handle); //将dir_handle指定的目录流重置到目录的开头
+
+reddir($dir_handle);    //返回目录中下一个文件的文件名。文件名以在文件系统中的排序返回
 
