@@ -1,3 +1,249 @@
+#PHP7新特性
+##标量类型声明
+标量类型声明有两种模式：强制（默认）和严格模式。现在可以使用下列类型参数（无论用强制模式还是严格模式）：字符串（string），整型（int），浮点数（float），以及布尔值（bool）。它们扩充了PHP5中引入的其他类型：类名，接口，数组和回调类型。<br>
+<pre>
+// Coercive mode
+function sumOfInts(int ...$this)
+{
+	return array_sum($ints);
+}
+
+var_dump(sumOfInts(2,'3',4.1));
+</pre>
+以上例程会输出：<br>
+<pre>int(9)</pre>
+要使用严格模式，一个declare声明指令必须放在文件的顶部。这意味着严格声明标量是基于文件配置的。这个指令不仅影响参数的类型声明，也影响到函数的返回值声明。<br>
+##返回值类型声明
+PHP7增加了对返回类型声明的支持。类似于参数类型声明，返回类型声明了函数返回值的类型。可用的类型与参数声明中可用的类型相同。<br>
+<pre>
+function arraysSum(array ...$arrays):array
+{
+	return array_map(function(array $array):int {
+		return array_sum($array);
+	},$arrays);
+}
+
+print_r(arraysSum([1,2,3], [4,5,6], [7,8,9]));
+</pre>
+以上例程会输出：<br>
+<pre>
+Array
+(
+	[0] => 6
+	[1] => 15
+	[2] => 24 
+)
+</pre>
+##null合并运算符
+由于日常使用中存在大量同时使用三元表达式和isset()的情况，添加了null合并运算符(??)这个语法糖。如果变量存在企且值不为null，它就会返回自身的值，否则返回它的第二个操作数。<br>
+<pre>
+// Fetches the value of $_GET['user'] and returns 'nobody'
+// if it does not exist.
+$username = $_GET['user'] ?? 'nobody';
+// This is equivalent to:
+$username = isset($_GET['user']) ? $_GET['user'] : 'nobody';
+// Coalesces can be chained: this will return the first
+// defined value out of $_GET['user'], $_POST['user'], and
+// 'nobody'.
+$username = $_GET['user'] ?? $_POST['user'] ?? 'nobody';
+</pre>
+##太空船操作符 （组合比较符）
+太空船操作符用于比较两个表达式。当$a小于、等于、大于$b时分别返回-1,0，1。<br>
+<pre>
+
+<?php
+// 整数
+echo 1 <=> 1; // 0
+echo 1 <=> 2; // -1
+echo 2 <=> 1; // 1
+
+// 浮点数
+echo 1.5 <=> 1.5; // 0
+echo 1.5 <=> 2.5; // -1
+echo 2.5 <=> 1.5; // 1
+ 
+// 字符串
+echo "a" <=> "a"; // 0
+echo "a" <=> "b"; // -1
+echo "b" <=> "a"; // 1
+?>
+
+</pre>
+##通过define()定义常量数组
+<pre>
+define('ANIMALS',[
+	'dog',
+	'cat',
+	'bird'
+]);
+
+echo ANIMALS[1];	//输出 "cat"
+</pre>
+##匿名类
+现在支持通过new class来实例化一个匿名类，这可以用于替代一些“用后即焚”的完整类定义。<br>
+<pre>
+<?php
+interface Logger {
+	public function log(string $msg);
+}
+class Application {
+	private $logger;
+
+	public function getLogger(): Logger {
+		return $this->logger;
+	}
+
+	public function setLogger(Logger $logger){
+		$this->logger = $logger;
+	}
+}
+
+$app = new Application;
+$app->setLogger(new class implements Logger {
+	public function log(string $msg){
+		echo $msg;
+	}
+});
+
+var_dump($app->getLosgger());
+?>
+</pre>
+以上例程会输出：<br>
+<pre>
+object(class@anonymous)#2 (0) {
+}
+</pre>
+##Unicode codepoint 转译语法
+这接受一个以16进制形式的Unicode codepoint,并打印出一个双引号或heredoc包围的UTF-8编码格式的字符串。可以接受任何有效的codepoint，并且开头的0可以省略的。<br>
+<pre>
+echo "\u{aa}";
+echo "\u{0000aa}";
+echo "\u{9999}";
+</pre>
+以上例程会输出：<br>
+<pre>
+ª
+ª (same as before but with optional leading 0's)
+香
+</pre>
+###Closure::call()
+Closure::call()现在有着更好的性能，简短干练的暂时绑定一个方法到对象上闭包并调用它。<br>
+<pre>
+<?php
+class A {private $x = 1;}
+
+// PHP7 之前版本的代码
+$getXCB = function() {return $this->x;};
+$getX = $getXCB->bindTo(new A, 'A');	//中间层闭包
+echo $getX();
+
+// PHP7+ 及更高版本的代码
+$getX = function() {return $this->x;};
+echo $getX->call(new A);
+</pre>
+以上例程会输出：<br>
+<pre>
+1
+1
+</pre>
+###为unserialize()提供过滤
+这个特性旨在提供更安全的方式解包不可靠的数据。它通过白名单的方式来防止潜在的代码注入<br>
+<pre>
+<?php
+
+// 将所有的对象都转换为 __PHP_Incomplete_Class 对象
+$data = unserialize($foo, ["allowed_class" => false]);
+
+// 将除 MyClass 和 MyClass2 之外的所有对象都转换为 __PHP_Incomplete_Class 对象
+$data = unserialize($foo, ["allowed_classes" => ["MyClass", "MyClass2"]);
+
+// 默认情况下所有的类都是可接受的，等同于省略第二个参数
+$data = unserialize($foo, ["allowed_classes" => true]);
+
+</pre>
+###IntlChar
+新增加的IntlChar类旨在暴露更多的ICU功能。这个类自身定义了许多静态方法用于操作多字符集的unicode字符。<br>
+<pre>
+printf('%x', IntlChar::CODEPOINT_MAX);
+echo IntlChar::charName('@');
+var_dump(IntlChar::ispunct('!'));
+
+</pre>
+以上例程会输出：<br>
+<pre>
+10ffff
+COMMERCIAL AT
+bool(true)
+</pre>
+若要使用此类，请先安装Intl扩展 
+##预期
+预期是向后兼用增强之前的asset()的方法。它使得在生产环境中启动断言为零成本，并且提供当断言失败时抛出特定异常的能力。<br>
+老版本的API出于兼容目的将继续被维护，assert()现在是一个语言结构，它允许第一个参数是一个表达式，而不仅仅是一个待计算的 string或一个待测试的boolean。 <br>
+<pre>
+
+ini_set('assert.exception', 1);
+
+class CustomError extends AssertionError {}
+
+assert(false, new CustomError('Some error message'));
+</pre>
+以上例程会输出：<br>
+<pre>
+Fatal error: Uncaught CustomError: Some error message
+</pre>
+##Group use declarations
+从同一 namespace 导入的类、函数和常量现在可以通过单个 use 语句 一次性导入了。 <br>
+<pre>
+// PHP 7 之前的代码
+use some\namespace\ClassA;
+use some\namespace\ClassB;
+use some\namespace\ClassC as C;
+
+use function some\namespace\fn_a;
+use function some\namespace\fn_b;
+use function some\namespace\fn_c;
+
+use const some\namespace\ConstA;
+use const some\namespace\ConstB;
+use const some\namespace\ConstC;
+
+// PHP 7+ 及更高版本的代码
+use some\namespace\{ClassA, ClassB, ClassC as C};
+use function some\namespace\{fn_a, fn_b, fn_c};
+use const some\namespace\{ConstA, ConstB, ConstC};
+</pre>
+##生成器可以返回表达式
+此特性基于PHP5.5版本中引入的生成器特性构建的。它允许在生产器函数中通过return语法来返回一个表达式（但是不允许返回引用值），可以通过调用Generator::getReturn()方法来取得生成器的返回值，但是这个方法只能在生成器完成产生工作以后调用一次。<br>
+<pre>
+$gen = (function() {
+	yield 1;
+	yield 2;
+
+	return 3;
+})();
+
+foreach ($gen as $val) {
+	echo $val, PHP_EOL;
+}
+
+echo $gen->getReturn(), PHP_EOL;
+
+</pre>
+以上例程会输出：<br>
+<pre>
+1
+2
+3
+</pre>
+在生成器中能够返回最终的值是一个非常便利的特性，因为它使得调用生成器的客户端代码可以直接得到生成器（或者其他协同计算）的返回值，相对于之前版本中客户端代码必须先检查生成器是否产生了最终的值然后再进行响应处理来得方便多了<br>
+
+
+
+
+
+
+
+
 #PHP7内核剖析
 ##PHP基本架构
 ####基本实现
@@ -532,5 +778,313 @@ unset($b);               //$b = IS_UNDEF  $a,$c ->  zend_string_1(refcount=2)
 </pre>
 引用计数的信息位于给具体value结构的gc中：
 <pre>
-
+typedef struct _zend_refcounted_h {
+	uint32_t	refcount;		/* reference counter 32-bit */
+	union {
+		struct {
+			ZEND_ENDIAN_LOHI_3(
+				zend_uchar 	type,
+				zend_uchar	flags,	/* used for string & objects */
+				uint_16_t	gc_info)	/*  */
+		} v;
+		uint32_t type_info;
+	} u;
+} zend_refcounted_h;
 </pre>
+从上面的zend_value结构可以看出并不是所有的数据类型都会用到引用计数，long、double直接都是硬拷贝，只有value是指针的那几种类型才__可能__会用到引用计数。<br>
+下面再看一个例子：<br>
+<pre>
+$a = "hi~";
+$b = $a;
+</pre>
+猜测一下变量$a/$b的引用情况。<br>
+这个不跟上面的例子一样吗？字符串"hi~"有$a/$b两个引用，所以zend_string1(refcount=2)。但是这是错的，gdb调试发现上面例子zend_string的引用计数为0。这是为什么呢？<br>
+<pre>
+$a,$b -> zend_string_1(refcount=0,val="hi~")
+</pre>
+事实上并不是所有的PHP变量都会用到引用计数，标量：true/false/double/long/null是硬拷贝自然不需要这种机制，但是除了这几个还有两个特殊的类型也不会用到：interned string(内部字符串，就是上面提到的字符串flag：IS_STR_INTERNED)、immutable array，它们的type是IS_STRING、IS_ARRAY，与普通string、array类型相同，那怎么区分一个value是否支持引用计数呢？还记得zval.u1中那个类型掩码type_flag吗？正是通过这个字段标识的，这个字段除了标识value是否支持引用计数外还有其它几个标识位，按位分割，注意：type_flag与zval.value->gc.u.flag不是一个值。<br>
+支持引用计数的value类型其zval.u1.type_flag 包含 (注意是&，不是等于)IS_TYPE_REFCOUNTED：<br>
+<pre>
+#define IS_TYPE_REFCOUNTED	(1<<2)
+</pre>
+下面具体列下哪些类型会有这个标识：<br>
+<pre>
+|     type       | refcounted |
++----------------+------------+
+|simple types    |            |
+|string          |      Y     |
+|interned string |            |
+|array           |      Y     |
+|immutable array |            |
+|object          |      Y     |
+|resource        |      Y     |
+|reference       |      Y     |
+</pre>
+simple types很显然用不到，不再解释，string、array、object、resource、reference有引用计数机制也很容易理解，下面具体解释下另外两个特殊的类型：<br>
+<ul>
+<li>
+interned string： 内部字符串，这是种什么类型？我们在PHP中写的所有字符都可以认为是这种类型，比如function name、class name、variable name、静态字符串等等，我们这样定义:$a = "hi~";后面的字符串内容是唯一不变的，这些字符串等同于C语言中定义在静态变量区的字符串：char *a = "hi~";，这些字符串的生命周期为request期间，request完成后会统一销毁释放，自然也就无需在运行期间通过引用计数管理内存。
+</li>
+<li>
+immutable array： 只有在用opcache的时候才会用到这种类型，不清楚具体实现，暂时忽略。
+</li>
+</ul>
+####写时复制
+引用计数，多个变量可能指向同一个value，然后通过refcount统计引用计数，这时候如果其中一个变量试图更改value的内容则会重新拷贝一份value修改，同时断开旧的指向，写时复制的机制在计算机系统中有非常广的应用，它只有在必要的时候（写）才会发生硬拷贝，可以很好的提高效率，下面从示例看下：<br>
+<pre>
+$a = array(1,2);
+$b = $a;
+$c = $a;
+//发生分离
+$b = [];
+</pre>
+最终结果：<br>
+<img src="/img/zval_sep.png">
+不是所有的类型都可以copy的，比如对象，资源，实时上只有string，array两种支持，与引用计数相同，也是通过zval.u1.type_flag标识value是否可复制的：<br>
+<pre>
+#define IS_TYPE_COPYABLE	(1<<4)
+</pre>
+<pre>
+|     type       |  copyable  |
++----------------+------------+
+|simple types    |            |
+|string          |      Y     |
+|interned string |            |
+|array           |      Y     |
+|immutable array |            |
+|object          |            |
+|resource        |            |
+|reference       |            |
+</pre>
+copyable的意思是当value发生duplication时是否需要或者能够copy,这个具体有两种情形下会发生：<br>
+<ul>
+<li>
+a.从literal变量区复制到局部变量区，比如：$a = []; 实际会有两个数组，而$a = 'hi~'; //interned string 则只有一个string
+</li>
+<li>
+b.局部变量区分离时（写时复制）：如改变变量内容时引用计数大于1则需要分离，$a = []; $b = $a; $b[] = 1; 这里会分离，类型是array所有可以复制，如果是对象： $a = new user; $b = $a; $a->name = 'dd';这种情况是不会复制object的，$a、$b指向的对象还是同一个。
+</li>
+</ul>
+具体literal、局部变量区变量的初始化、赋值后面编译、执行两篇文章会具体分析，这里知道变量有个copyable的属性就行。
+####变量回收
+PHP变量的回收主要有两种：主动销毁、自动销毁。主动销毁指的是unset，而自动销毁就是PHP的自动管理机制，在return时减掉局部变量的refcount，即使没有显示的return，PHP也会自动加上这个操作，另一个就是写时复制时会断开原来value的指向，这时候也会检查断开后旧value的refcount。
+####垃圾回收
+PHP变量的回收是根据refcount实现的，当unset、return时会将变量的引用计数减掉，如果refcount减到0则直接释放value，这是变量的简单gc过程，但是实际过程中出现gc无法回收导致内存泄漏的bug，先看一个例子：<br>
+<pre>
+$a = [1];
+$a[] = &$a;
+unset ($a);
+</pre>
+unset($a) 之前的引用关系：<br>
+<img src="/img/gc_1.png">
+<img src="/img/gc_2.png">
+可以看到，unset($a)之后由于数组中有子元素指向$a，所以refcount>0，无法通过简单的gc机制回收，这种变量就是垃圾，垃圾回收器要处理的就是这种情况，目前垃圾只会出现在array、object两种类型中，所以只会针对这两种情况作特殊处理：当销毁一个变量时，如果发现减掉refcount后任然大于0，且类型是IS_ARRAY、IS_OBJECT则将此value放入gc可能垃圾双向链表中，等这个链表达到一定数量后启动检查程序将所有变量检查一遍，如果确定是垃圾则销毁释放。<br>
+标识变量是否需要回收也通过u1.type_flag区分的：<br>
+<pre>
+#define IS_TYPE_COLLECTABLE
+</pre>
+<pre>
+|     type       | collectable |
++----------------+-------------+
+|simple types    |             |
+|string          |             |
+|interned string |             |
+|array           |      Y      |
+|immutable array |             |
+|object          |      Y      |
+|resource        |             |
+|reference       |             |
+</pre>
+##数组
+数组是PHP中非常强大、灵活的一种数据类型，它的底层实现为散列表(HashTable,也称作哈希表)，除了我们熟悉的PHP用户空间的Array类型外，内核中也随处用到散列表，比如函数、类、常量、已include文件的索引表、全局符号表等都用的HashTable存储。<br>
+散列表是根据关键码值(key value)而直接进行访问的数据结构，它的key - value之间存在一个映射函数，可以根据key通过映射函数直接索引到对应的value值，它不以关键字的比较为基本操作，采用直接寻址技术(就是说，它直接通过key映射到内存地址上去的)，从而加快查找速度，在理想情况下，无须任何比较就可以找到待查关键字，查找的期望时间为O(1).<br>
+###数组结构
+存放记录的数组称为散列表，这个数组用来存储value，而value具体在数组中的存储位置有映射函数根据key计算确定，映射函数可以采用取模的方式，key可以通过一些譬如"times 33"的算法得到一个整形值，然后与数组总大小取模得到在散列表中的存储位置。这是个普通散列表的实现，PHP散列表的实现整体也是这个思路，只是有几个特殊的地方，下面就是PHP中HashTable的数据结构：<br>
+<pre>
+//Bucket：散列表中存储的元素
+typedef struct _Bucket {
+    zval              val; //存储的具体value，这里嵌入了一个zval，而不是一个指针
+    zend_ulong        h;   //key根据times 33计算得到的哈希值，或者是数值索引编号
+    zend_string      *key; //存储元素的key
+} Bucket;
+
+//HashTable结构
+typedef struct _zend_array HashTable;
+struct _zend_array {
+    zend_refcounted_h gc;
+    union {
+        struct {
+            ZEND_ENDIAN_LOHI_4(
+                    zend_uchar    flags,
+                    zend_uchar    nApplyCount,
+                    zend_uchar    nIteratorsCount,
+                    zend_uchar    reserve)
+        } v;
+        uint32_t flags;
+    } u;
+    uint32_t          nTableMask; //哈希值计算掩码，等于nTableSize的负值(nTableMask = -nTableSize)
+    Bucket           *arData;     //存储元素数组，指向第一个Bucket
+    uint32_t          nNumUsed;   //已用Bucket数
+    uint32_t          nNumOfElements; //哈希表有效元素数
+    uint32_t          nTableSize;     //哈希表总大小，为2的n次方
+    uint32_t          nInternalPointer;
+    zend_long         nNextFreeElement; //下一个可用的数值索引,如:arr[] = 1;arr["a"] = 2;arr[] = 3;  则nNextFreeElement = 2;
+    dtor_func_t       pDestructor;
+};
+</pre>
+HashTable中有两个非常相近的值：nNumUsed、nNumOfElements、nNumOfElements表示哈希表已有元素数，那这个值不跟nNumUsed一样吗？为什么要定义两个呢？实际上它们有不同的含义，当将一个元素从哈希表删除时并不会将对于的Bucker移除，而是将Bucket存储的zval改为IS_UNDEF，只有扩容时发现nNumOfElements与nNumUsed相差达到一定数量(这个数量是：ht->nNumUsed - ht->nNumOfElements > (ht->nNumOfElements >> 5))时才会将已删除的元素全部移除，重新构建哈希表。所以nNumUsed >= nNumOfElements。<br>
+HashTable中另外一个非常重要的值arData，这个值指向存储元素数组的第一个Bucket，插入元素时按顺序 依次插入 数组，比如第一个元素在arData[0]、第二个在arData[1]...arData[nNumUsed]。PHP数组的有序性正是通过arData保证的，这是第一个与普通散列表实现不同的地方。<br>
+既然arData并不是按key映射的散列表，那么映射函数是如何将key与arData中的value建立映射关系的呢？<br>
+实际上这个散列表也在arData中，比较特别的是散列表在ht->arData内存之前，分配内存时这个散列表与Bucket数组一起分配，arData向后移动到了Bucket数组的起始位置，并不是申请内存的起始位置，这样散列表可以由arData指针向前移动访问到，即arData[-1]、arData[-2]、arData[-3]......散列表的结构是uint32_t，它保存的是value在Bucket数组中的位置。<br>
+所以，整体来看HashTable主要依赖arData实现元素的存储、索引。插入一个元素时先将元素按先后顺序插入Bucket数组，位置是idx，再根据key的哈希值映射到散列表中的某个位置nIndex，将idx存入这个位置；查找时先在散列表中映射到nIndex，得到value在Bucket数组的位置idx，再从Bucket数组中取出元素。<br>
+<pre>
+$arr["a"] = 1;
+$arr["b"] = 2;
+$arr["c"] = 3;
+$arr["d"] = 4;
+
+unset($arr["c"]);
+</pre>
+对应的HashTable如下图所示。<br>
+<img src="/img/zend_hash_1.png">
+####映射函数
+映射函数(即：散列函数)是散列表的关键部分，它将key与value建立映射关系，一般映射函数可以根据key的哈希值与Bucket数组大小取模得到，即key->h%ht->nTableSize，但是PHP却不是这么做的：<br>
+<pre>
+nIndex = key->h | ht->nTableMask;
+</pre>
+显然位运算要比取模更快。<br>
+nTableMask为nTableSize的负数，即:nTableMask = -nTableSize，因为nTableSize等于2^n，所以nTableMask二进制位右侧全部为0，也就保证了nIndex落在数组索引的范围之内(|nIndex| <= nTableSize)：<br>
+<pre>
+11111111 11111111 11111111 11111000   -8
+11111111 11111111 11111111 11110000   -16
+11111111 11111111 11111111 11100000   -32
+11111111 11111111 11111111 11000000   -64
+11111111 11111111 11111111 10000000   -128
+</pre>
+####哈希碰撞
+哈希碰撞是指不同的key可能计算得到相同的哈希值(数值索引的哈希值直接就是数值本身)，但是这些值只需要插入同一个散列表。一般解决方法是将Bucket串成链表，查找时遍历链表比较key。<br>
+PHP的实现也是如此，只是将链表的指针指向转化为了数值指向，即：指向冲突元素的指针并没有直接存在Bucket中，而是保存到了value的zval中：<br>
+<pre>
+struct _zavl_struct {
+	zend_value		value;		/* value */
+	...
+	union {
+		uint32_t     var_flags;
+        uint32_t     next;                 /* hash collision chain */
+        uint32_t     cache_slot;           /* literal cache slot */
+        uint32_t     lineno;               /* line number (for ast nodes) */
+        uint32_t     num_args;             /* arguments number for EX(This) */
+        uint32_t     fe_pos;               /* foreach position */
+        uint32_t     fe_iter_idx;          /* foreach iterator index */
+	} u2;
+}
+</pre>
+当出现冲突时将原value的位置保存到新value的zval.u2.next中，然后将新插入的value的位置更新到散列表，也就是后面冲突的value始终插入header。所以查找过程类似：<br>
+<pre>
+zend_ulong h = zend_string_hash_val(key);
+uint32_t idx = ht->arHash[h & ht->nTableMask];
+while (idx != INVALID_IDX) {
+    Bucket *b = &ht->arData[idx];
+    if (b->h == h && zend_string_equals(b->key, key)) {
+        return b;
+    }
+    idx = Z_NEXT(b->val); //移到下一个冲突的value
+}
+return NULL;
+</pre>
+####插入、查找、删除
+这几个基本操作比较简单，不再赘述，定位到元素所在Bucket位置后的操作类似单链表的插入、删除、查找。
+####扩容
+散列表可存储的value数是固定的，当空间不够用时就要进行扩容了。<br>
+PHP散列表的大小为2^n，插入时如果容量不够则首先检查已删除元素所占比例，如果达到阈值(ht->nNumUsed - ht->nNumOfElements > (ht->nNumOfElements >> 5)，则将已删除元素移除，重建索引，如果未到阈值则进行扩容操作，扩大小当前大小的2倍，将当前Bucket数组复制到新的空间，然后重建索引。<br>
+<pre>
+//zend_hash.c
+static void ZEND_FASTCALL zend_hash_do_resize(HashTable *ht)
+{
+
+    if (ht->nNumUsed > ht->nNumOfElements + (ht->nNumOfElements >> 5)) {
+        //只有到一定阈值才进行rehash操作
+        zend_hash_rehash(ht); //重建索引数组
+    } else if (ht->nTableSize < HT_MAX_SIZE) {
+        //扩容
+        void *new_data, *old_data = HT_GET_DATA_ADDR(ht);
+        //扩大为2倍，加法要比乘法快，小的优化点无处不在...
+        uint32_t nSize = ht->nTableSize + ht->nTableSize;
+        Bucket *old_buckets = ht->arData;
+
+        //新分配arData空间，大小为:(sizeof(Bucket) + sizeof(uint32_t)) * nSize
+        new_data = pemalloc(HT_SIZE_EX(nSize, -nSize), ...);
+        ht->nTableSize = nSize;
+        ht->nTableMask = -ht->nTableSize;
+        //将arData指针偏移到Bucket数组起始位置
+        HT_SET_DATA_ADDR(ht, new_data);
+        //将旧的Bucket数组拷到新空间
+        memcpy(ht->arData, old_buckets, sizeof(Bucket) * ht->nNumUsed);
+        //释放旧空间
+        pefree(old_data, ht->u.flags & HASH_FLAG_PERSISTENT);
+        
+        //重建索引数组：散列表
+        zend_hash_rehash(ht);
+        ...
+    }
+    ...
+}
+
+#define HT_SET_DATA_ADDR(ht, ptr) do { \
+        (ht)->arData = (Bucket*)(((char*)(ptr)) + HT_HASH_SIZE((ht)->nTableMask)); \
+    } while (0)
+</pre>
+####重建散列值
+当删除元素达到一定数量或扩容后都需要重建散列表，因为value在Bucket位置移动了或哈希数组nTableSize变化了导致key与value的映射关系改变，重建过程实际就是遍历Bucket数组中的value，然后重新计算映射值更新到散列表，除了更新散列表之外，这里还有一个重要的处理：移除已删除的value，开始的时候我们说过，删除value时只是将value的type设置为IS_UNDEF，并没有实际从Bucket数组中删除，如果这些value一直存在那么将浪费很多空间，所以这里会把它们移除，操作的方式也比较简单：将后面未删除的value依次前移，具体过程如下：<br>
+<pre>
+//zend_hash.c
+ZEND_API int ZEND_FASTCALL zend_hash_rehash(HashTable *ht)
+{
+    Bucket *p;
+    uint32_t nIndex, i;
+    ...
+    i = 0;
+    p = ht->arData;
+    if (ht->nNumUsed == ht->nNumOfElements) { //没有已删除的直接遍历Bucket数组重新插入索引数组即可
+        do {
+            nIndex = p->h | ht->nTableMask;
+            Z_NEXT(p->val) = HT_HASH(ht, nIndex);
+            HT_HASH(ht, nIndex) = HT_IDX_TO_HASH(i);
+            p++;
+        } while (++i < ht->nNumUsed);
+    } else {
+        do {
+            if (UNEXPECTED(Z_TYPE(p->val) == IS_UNDEF)) {
+                //有已删除元素则将后面的value依次前移，压实Bucket数组
+                ......
+                while (++i < ht->nNumUsed) {
+                    p++;
+                    if (EXPECTED(Z_TYPE_INFO(p->val) != IS_UNDEF)) {
+                        ZVAL_COPY_VALUE(&q->val, &p->val);
+                        q->h = p->h;
+                        nIndex = q->h | ht->nTableMask;
+                        q->key = p->key;
+                        Z_NEXT(q->val) = HT_HASH(ht, nIndex);
+                        HT_HASH(ht, nIndex) = HT_IDX_TO_HASH(j);
+                        if (UNEXPECTED(ht->nInternalPointer == i)) {
+                            ht->nInternalPointer = j;
+                        }
+                        q++;
+                        j++;
+                    }
+                }
+                ......
+                ht->nNumUsed = j;
+                break;
+            }
+            
+            nIndex = p->h | ht->nTableMask;
+            Z_NEXT(p->val) = HT_HASH(ht, nIndex);
+            HT_HASH(ht, nIndex) = HT_IDX_TO_HASH(i);
+            p++;
+        }while(++i < ht->nNumUsed);
+    }
+}
+</pre>
+##静态变量
+
