@@ -1,0 +1,18 @@
+samba软件
+https://www.cnblogs.com/zoulongbin/p/7216246.html
+
+sublime	sftp 软件
+http://blog.csdn.net/alpha_xiao/article/details/53784397
+
+插件集合：
+http://blog.csdn.net/heiyeshuwu/article/details/51859571
+
+Git：
+fetch方法：
+https://www.cnblogs.com/lizhang4/p/7428573.html
+
+查看远程，本地分支
+https://www.cnblogs.com/niit-soft-518/p/6767171.html
+
+pull/push方法
+http://blog.csdn.net/litianze99/article/details/52452521

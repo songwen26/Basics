@@ -31,3 +31,179 @@ OOP的3个基础概念：封装、集成、多态
 <p>
 	instanceof 接口 可能要重复地调用某个函数，但希望根据给定的对象类型调整函数的行为。可以使用instanceof
 </p>
+###辅助函数
+<p>
+	创建类别名：class_alias (创建一个类别名，允许用多个名来引用一个类)
+	<p>
+		bool class_alias (string $original, string $alias [, bool $autoload = TRUE])
+	</p>
+</p>
+<p>
+	确定类是否存在： class_exists (存在返回TRUE，不存在FALSE)
+	<p>
+		bool class_exists (string $class_name)
+	</p>
+</p>
+<p>
+	确定对象上下文：get_class_ 返回object所属类的类名
+</p>
+<p>
+	了解类的方法：get_class_methods 返回array包含类中定义方法名
+</p>
+<p>
+	了解类属性：get_class_vars 关联数组包含定义属性及值
+</p>
+<p>
+	了解声明类：get_declared_classes 返回数组
+</p>
+<p>
+	了解对象属性：get_object_vars 返回关联array 定义属性及值
+</p>
+<p>
+	了解父类： get_parent_class 返回对象或类的父类名称 
+</p>
+<p>
+	确定接口是否存在： interface_exists
+</p>
+###自动加载对象
+<p>
+	__autoload函数：只要一次调用一个类时，就会调用此函数
+</p>
+<p>
+	PHP不支持高级OOP：以下均不支持
+	<p>
+		方法重载、操作符重载、多重继承
+	</p>
+</p>
+<p>
+	对象克隆： clone 复制对象（包括对象本身的属性）
+</p>
+<p>
+	继承
+	<p>
+		类继承：通过extends关键字实现
+	</p>
+	<p>
+		继承与延迟静态绑定： self:: -> 自己调用自己属性。相当于$this
+	</p>
+</p>
+<p>
+	接口：定义了实现某种服务的一般规范，声明了必要函数和常量但不指定如何实现。（PS：接口中不定义成员！类成员的定义完全交给类来完成）
+</p>
+<p>
+	抽象类：是不能被实例化得类，只能作为其他类继续的基类。
+</p>
+<p>
+	抽象类还是接口：
+	<p>
+		1、如果要创建一个模型，这个模型将由一些紧密相关的对象采用，就可以使用抽象类。如果要创建一个些不相关对象采用的功能，就使用接口。
+	</p>
+	<p>
+		2、如果必须从多个来源继承行为，就使用接口。
+	</p>
+	<p>
+		3、如果知道所有类都公共一个公共的行为实现，就使用抽象类，并在其中实现该行为。在接口中无法实现行为。
+	</p>
+</p>
+<p>
+	命名空间：
+	<p>
+		当中的类名重复了需要使用命名空间		
+	</p>
+	<P>
+		<p>
+			例如： namespace com\wjil\Libray;
+		</p>		
+		<p>
+			namespace com\Thir\Datacleaner;
+		</p>		
+		加载两个文件：	   
+		<p>
+			require Libray.php;			
+		</p>
+		<p>
+			require Datacleaner.php
+		</p>
+		<p>
+			use com\wjil\Libray as WJG;			
+		</p>
+		<p>
+			use com\Thir\Libray as TP;
+		</p>
+		实例化同个类
+		<p>
+			$a = new WJG\clean();
+		</p>
+		<p>
+			$b = new TP\clean();
+		</p>
+	</P>
+</p>
+<p>
+	错误和异常处理
+	<p>
+		1、配置指令：
+		<p>
+			error_reporting = E_ALL & E_STRICT
+		</p>	
+		<p>
+			error_get_last 函数返回关联数组，包含最后出现的错误
+		</p>
+		<p>
+			error_log 函数一般用法 error_log("信息",3,"文件地址")
+		</p>
+		<p>
+			标识日志文件，在Linux错误发送到syslog			
+		</p>
+		<p>
+			启用ignore_repeated_errors指令将使PHP忽略同一文件中同一行上发生的重复的错误。
+		</p>
+		<p>
+			初始化PHP的日志工具： define_syslog_variables()
+		</p>
+		<p>
+			打开日志连接：openlog()
+		</p>
+		<P>
+			向日志发送消息 syslog()
+		</P>
+	</p>
+	<p>
+		2、异常处理，4个步骤：try/catch
+		<ul>
+			<li>应用程序尝试做一些操作</li>
+			<li>如果尝试失败，则异常处理特性抛出一个异常</li>
+			<li>指定的处理器捕获异常，完成必要的任务</li>
+			<li>异常处理特性清除在尝试期间占用的资源</li>
+		</ul>
+	</p>	
+</p>
+<p>
+	PHP的异常处理实现
+	<p>
+		<ul>
+			1、扩展基本异常类
+			<li>throw new Exception();</li>
+			<li>message解释， error code 用于保存错误标识符， previous 异常的异常</li>
+			2、扩展异常类
+			<li>自己写类去继承 Exception</li>
+			3、捕获多个异常
+			<li>SOL异常：标准PHP库。 LogicExcetion, RuntimeException</li>
+		</ul>
+	</p>
+</p>
+###正则
+<p>
+	^ 起始位置 $ 终止位置
+</p>
+<p>
+	PHP的正则表达式函数
+	<ul>
+		1、以区分大小写的方式搜索
+		<li>bool ereg() 函数根据定义的模式以区分大小写的方式搜索</li>
+		2、以不区分大小写的方式搜索
+		<li>eregi() 搜索一个匹配预定义模式的字符串时不区分大小写</li>、
+		3、以区分大小写的方式替换文本
+		<li>ereg_replace()</li>
+	</ul>
+</p>
