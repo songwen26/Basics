@@ -204,6 +204,138 @@ OOP的3个基础概念：封装、集成、多态
 		2、以不区分大小写的方式搜索
 		<li>eregi() 搜索一个匹配预定义模式的字符串时不区分大小写</li>、
 		3、以区分大小写的方式替换文本
-		<li>ereg_replace()</li>
-	</ul>
+		<li>ereg_replace(string $pattern, string $replacement, string $string)</li>
+		4、以不区分大小写的形式替换文本
+		<li>ereg_replace(string $pattern, string $replacement, string $string)</li>
+		5、以区分大小写的方式将字符串划分为不同元素
+		<li>array split(string $pattern, string $string[, int $limit])</li>
+		6、以不区分大小的方式将字符串划分为不同元素
+		<li>spliti(string $pattern, string $string[, int $limit = -1])</li>
+		7、调节只支持区分大小写的正则表达式
+		<li>sql_regcase(string $string)</li>		
+	</ul>	
+</p>
+<p>
+	正则表达式语法（perl风格）
+	<p>
+		<p>
+			1、修饰符：
+			<ul>
+				<li>i 完全不区分大小写</li>
+				<li>g 查找所有出现（完全全面搜索）</li>
+				<li>s 忽略所有换行符 （m 与 s相反）</li>
+				<li>x "贪婪" 一直匹配 （忽略注释和空白）</li>
+				<li>u 不贪婪</li>
+			</ul>
+		</p>
+		<p>
+			2、元字符： \A  \b  \B  \d  \D  \s  \S  []  () $
+		</p>
+		<p>
+			3、PHP的正则表达式函数 （perl风格）
+		</p>
+	</p>
+</p>
+###文件处理，操作系统
+<p>
+	1、获取路径的文件
+	<p>basename()</p>	
+</p>
+<p>
+	2、获取路径的目录
+	<p>dirname()</p>
+</p>
+<p>
+	3、pathinfo()函数创建一个关联数组
+</p>
+<p>
+	4、确定绝对路径
+	<p>
+		realpath()
+	</p>
+</p>
+<p>
+	确定文件的大小： int filesize(string $filename)
+</p>
+<p>
+	计算磁盘的可以空间：disk_free_space()
+</p>
+<p>
+	确定文件的最后访问时间：fileatime()
+</p>
+<p>
+	文件的最后改变时间： filectime()
+</p>
+<p>
+	文件的最后修改时间： fielmtime()
+</p>
+<p>
+	打开文件： fopen(string $resource, string $mode [, bool $use_include_path = false [, resource $context ]]) R, rt, w, wt
+</p>
+<p>
+	关闭文件：fclose()
+</p>
+<P>
+将文件读入数组： file()
+</P>
+<p>
+	将文件内容读入字符串变量：file_get_contents(string filename)
+</p>
+<p>
+	将字符串变量写入到文件中：file_put_contents( string $filename , mixed $data [, int $flags = 0 [, resource $context ]]) flags:FILE_APPEND  	如果文件 filename 已经存在，追加数据而不是覆盖
+</p>
+<p>
+	将CSV文件读入数组：fgetcsv()
+</p>
+<p>
+	读取指定数目的字符：fgets(resource $handle [, int $length ])
+</p>
+<p>
+	从输入中删除标签：fgetss( resource $handle [, int $length [, string $allowable_tags ]])
+</p>
+<p>
+	一次读取一个字符的方式： fgetc()
+</p>
+<p>
+	忽略换行符：fread()
+</p>
+<p>
+	读取整个文件：readfile()
+</p>
+<p>
+	根据预定义的格式读取文件：fscanf(资源, "%d-%s-")	
+</p>
+<p>
+	将字符串写入文件：fwrite()
+</p>
+<p>
+	将文件指针移到指定位置：fseek()
+</p>
+<p>
+	获取当前指针的偏移量：ftell()
+</p>
+<p>
+	将文件指针移回文件开始处：rewind()
+</p>
+<p>
+	打开目录：opendir()
+</p>
+<p>
+	关闭目录：closedir()
+</p>
+<p>
+	解析目录内容：readdir()
+</p>
+<p>
+	将目录读入数组：scandir()
+</p>
+<p>
+	界定输入：escapeshellarg() 用单引号界定给的参数
+</p>
+###时间和日期
+<p>
+	date 函数：date("t") t 几天 	date("F") 月份 ，当月
+</p>
+<p>
+	
 </p>
