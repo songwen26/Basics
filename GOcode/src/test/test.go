@@ -119,7 +119,7 @@ func modify(slice []int) {
 }*/
 
 //方法调用
-type person struct {
+/*type person struct {
 	name string
 }
 
@@ -129,4 +129,85 @@ func (p person) String() string {
 func main() {
 	p := person{name: "张三"}
 	fmt.Println(p.String())
+}*/
+/*func main() {
+	p:=person{name:"张三"}
+	p.modify() //值接收者，修改无效
+	fmt.Println(p.String())
 }
+type person struct {
+	name string
+}
+func (p person) String() string{
+	return "the person name is "+p.name
+}
+func (p person) modify(){
+	p.name = "李四"
+}*/
+/*func main() {
+	p := person{name: "张三"}
+	p.modify()
+	fmt.Println(p.String())
+}
+
+type person struct {
+	name string
+}
+
+func (p person) String() string {
+	return "the person name is " + p.name
+}
+
+// 使用一个指针作为接收者就会起作用了。
+// 因为指针接收者传递的是一个指向原值指针的副本，
+// 指向的还是原来类型的值所以修改时，同时也会影响原来类型变量的值
+
+func (p *person) modify() {
+	p.name = "李四"
+}*/
+/*
+* 在调用方法的时候，传递的接收者本质上都是副本，只不过一个是这个值副本，
+* 一是指向这个值指针的副本。指针具有指向原有值得特性，所以修改了指针指向的值
+* 也就修改了原有的值。
+* 可以简单的理解为值接收者使用的是值得副本来调用方法，而指针接收者使用实际的值来调用方法。
+ */
+
+//可变参数
+/*func main() {
+	fmt.Println("1", "2", "3")
+}*/
+/*func main() {
+	print("1", "2", "3")
+}
+func print(a ...interface{}) {
+	for _, v := range a {
+		fmt.Print(v)
+	}
+	fmt.Println()
+}*/
+
+//接口
+//值接收者实现
+/*func main() {
+	var c cat
+	invoke(c)
+}*/
+/*func main() {
+	var c cat
+	invoke(&c)
+}
+
+//需要一个animal接口作为参数
+func invoke(a animal) {
+	a.printInfo()
+}
+
+type animal interface {
+	printInfo()
+}
+type cat int
+
+//值接收者实现animal接口
+func (c cat) printInfo() {
+	fmt.Println("a cat")
+}*/
